@@ -397,9 +397,6 @@ const firebaseConfig = {
       <div class="divider-txt">ou</div>
       <button class="screen-btn secondary" onclick="showLogin()">Retour connexion</button>
     </div>
-    <p style="font-size:11px;color:var(--light);text-align:center;margin-top:14px;">
-      <a href="#" onclick="reconfigure()" style="color:var(--light);">Reconfigurer Firebase</a>
-    </p>
   </div>
 </div>
 
@@ -569,17 +566,17 @@ function save(){
 function getP(id){ return pts.find(p=>p.id===id); }
 
 /* ══ FIREBASE : configuration, authentification, synchronisation ══ */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyC3Tzz5UW3MITYnxgkPIheR-xY_pKfPhy4",
+  authDomain: "fichier-patients.firebaseapp.com",
+  projectId: "fichier-patients",
+  storageBucket: "fichier-patients.firebasestorage.app",
+  messagingSenderId: "1019796085250",
+  appId: "1:1019796085250:web:0320d6e1236c3de253251b"
+};
+
 function boot(){
-  const cfgStr = localStorage.getItem('firebaseConfigStr');
-  if(!cfgStr){
-    document.getElementById('screen-setup').style.display='flex';
-    renderSidebar();
-    return;
-  }
-  let cfg;
-  try{ cfg = JSON.parse(cfgStr); }
-  catch(e){ document.getElementById('screen-setup').style.display='flex'; renderSidebar(); return; }
-  initFirebase(cfg);
+  initFirebase(FIREBASE_CONFIG);
 }
 
 function initFirebase(cfg){
