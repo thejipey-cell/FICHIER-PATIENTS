@@ -58,31 +58,29 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 #sync-status.hidden{opacity:0;}
 @media(max-width:899px){#sync-status{top:auto;bottom:80px;right:12px;}}
 
-/* ══ OVERLAY ══ */
-#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;backdrop-filter:blur(2px);}
-#overlay.show{display:block;}
-
-/* ══ SIDEBAR ══ */
-#sidebar{position:fixed;top:0;left:0;bottom:0;width:var(--sw);background:var(--navy);display:flex;flex-direction:column;z-index:60;transition:transform .3s cubic-bezier(.4,0,.2,1);transform:translateX(-100%);}
-#sidebar.open{transform:translateX(0);}
-@media(min-width:900px){#sidebar{transform:translateX(0);}body{padding-left:var(--sw);}}
-#sb-head{padding:20px 16px 14px;border-bottom:1px solid rgba(255,255,255,.08);}
-.logo{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
-.logo-icon{width:36px;height:36px;background:var(--teal);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
-.logo-text{font-family:'Lora',serif;font-size:15px;color:#fff;font-weight:600;line-height:1.2;}
-.logo-sub{font-size:10px;color:rgba(255,255,255,.4);letter-spacing:1.5px;text-transform:uppercase;}
-.sb-close{position:absolute;top:14px;right:12px;background:rgba(255,255,255,.1);border:none;color:#fff;width:32px;height:32px;border-radius:6px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;}
-@media(min-width:900px){.sb-close{display:none;}}
-#sb-user{padding:8px 10px;margin-bottom:6px;background:rgba(255,255,255,.06);border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+/* ══ PATIENTS BAR (ligne fixe déroulante) ══ */
+#sidebar{position:relative;flex-shrink:0;background:var(--navy);z-index:70;}
+#sb-head{padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:10px;cursor:pointer;min-height:56px;user-select:none;}
+.logo{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.logo-icon{width:32px;height:32px;background:var(--teal);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.logo-text{font-family:'Lora',serif;font-size:14px;color:#fff;font-weight:600;line-height:1.2;}
+.logo-sub{font-size:9px;color:rgba(255,255,255,.4);letter-spacing:1.5px;text-transform:uppercase;}
+#pb-current{flex:1;min-width:0;font-size:13px;color:rgba(255,255,255,.75);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#pb-caret{color:rgba(255,255,255,.5);font-size:13px;transition:transform .25s;flex-shrink:0;}
+#sidebar.open #pb-caret{transform:rotate(180deg);}
+.sb-close{display:none;}
+#sb-dropdown{display:none;position:absolute;top:100%;left:0;right:0;background:var(--navy);flex-direction:column;box-shadow:0 16px 32px rgba(0,0,0,.3);max-height:min(70vh,560px);border-top:1px solid rgba(255,255,255,.08);}
+#sidebar.open #sb-dropdown{display:flex;}
+#sb-user{padding:8px 10px;margin:10px 12px 6px;background:rgba(255,255,255,.06);border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
 .sb-user-email{font-size:11.5px;color:rgba(255,255,255,.5);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .sb-logout{background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.6);padding:4px 8px;border-radius:5px;font-size:11px;cursor:pointer;font-family:inherit;white-space:nowrap;}
 .sb-logout:hover{background:rgba(255,255,255,.2);color:#fff;}
-#search-wrap{position:relative;}
+#search-wrap{position:relative;margin:10px 12px;}
 #search-input{width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:9px 12px 9px 34px;color:#fff;font-family:inherit;font-size:13px;outline:none;transition:border-color .2s;}
 #search-input::placeholder{color:rgba(255,255,255,.35);}
 #search-input:focus{border-color:var(--teal-l);}
 .si-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.35);pointer-events:none;}
-#patient-list{flex:1;overflow-y:auto;padding:8px;}
+#patient-list{flex:1;overflow-y:auto;padding:0 8px;}
 #patient-list::-webkit-scrollbar{width:3px;}
 #patient-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:3px;}
 .pt-item{padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:2px;display:flex;align-items:center;gap:10px;transition:background .15s;min-height:var(--tap);}
@@ -93,14 +91,12 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 .pt-info{min-width:0;}
 .pt-name{font-size:13.5px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .pt-meta{font-size:11px;color:rgba(255,255,255,.4);margin-top:1px;}
-#btn-new{margin:10px 12px;padding:12px;background:var(--teal);color:#fff;border:none;border-radius:8px;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;min-height:var(--tap);transition:background .2s;}
+#btn-new{margin:10px 12px;padding:12px;background:var(--teal);color:#fff;border:none;border-radius:8px;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;min-height:var(--tap);transition:background .2s;flex-shrink:0;}
 #btn-new:hover{background:var(--teal-l);}
 
 /* ══ MAIN ══ */
 #main{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;}
 #top-bar{background:var(--white);border-bottom:1px solid var(--border);padding:0 16px;display:flex;align-items:center;gap:10px;height:56px;flex-shrink:0;}
-#hamburger{background:none;border:none;cursor:pointer;padding:6px;color:var(--navy);font-size:20px;display:flex;align-items:center;justify-content:center;min-width:var(--tap);min-height:var(--tap);}
-@media(min-width:900px){#hamburger{display:none;}}
 #patient-title{flex:1;min-width:0;}
 #pt-title-name{font-size:13px;color:var(--light);font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 #top-actions{display:none;gap:6px;align-items:center;flex-shrink:0;}
@@ -402,27 +398,28 @@ const firebaseConfig = {
 
 <!-- ══ APP ══ -->
 <div id="sync-status" class="hidden"></div>
-<div id="overlay" onclick="closeSidebar()"></div>
 
 <div id="sidebar">
-  <div id="sb-head">
-    <button class="sb-close" onclick="closeSidebar()">✕</button>
+  <div id="sb-head" onclick="togglePatientsDropdown()">
     <div class="logo">
       <div class="logo-icon">🌿</div>
       <div><div class="logo-text">Étiopathie</div><div class="logo-sub">Cabinet</div></div>
     </div>
+    <div id="pb-current">Liste des patients</div>
+    <span id="pb-caret">▾</span>
+  </div>
+  <div id="sb-dropdown" onclick="event.stopPropagation()">
     <div id="search-wrap">
       <span class="si-icon">🔍</span>
       <input type="text" id="search-input" placeholder="Rechercher…" oninput="filterPts(this.value)">
     </div>
+    <div id="patient-list"><div class="empty-list">Chargement…</div></div>
+    <button id="btn-new" onclick="openModal()">＋ Nouveau patient</button>
   </div>
-  <div id="patient-list"><div class="empty-list">Chargement…</div></div>
-  <button id="btn-new" onclick="openModal()">＋ Nouveau patient</button>
 </div>
 
 <div id="main">
   <div id="top-bar">
-    <button id="hamburger" onclick="openSidebar()">☰</button>
     <div id="patient-title">
       <div id="pt-title-name">Sélectionnez un patient</div>
     </div>
@@ -461,6 +458,8 @@ const firebaseConfig = {
             <div class="fg"><label class="fl">Téléphone</label><input class="fi" id="f-tel" type="tel" placeholder="06 00 00 00 00"></div>
             <div class="fg"><label class="fl">E-mail</label><input class="fi" id="f-email" type="email" placeholder="patient@mail.fr"></div>
             <div class="fg"><label class="fl">Médecin traitant</label><input class="fi" id="f-medecin" placeholder="Dr. Martin"></div>
+            <div class="fg"><label class="fl">Sport</label><input class="fi" id="f-sport" placeholder="Course à pied, natation…"></div>
+            <div class="fg"><label class="fl">Vous venez de la part de qui ?</label><input class="fi" id="f-origine" placeholder="Bouche à oreille, médecin, internet…"></div>
           </div>
           <div class="divider"></div>
           <div class="grid3">
@@ -704,9 +703,11 @@ function listenPatients(uid){
   }, ()=>{ syncStatus('offline'); });
 }
 
-/* ══ SIDEBAR ══ */
-function openSidebar(){document.getElementById('sidebar').classList.add('open');document.getElementById('overlay').classList.add('show');}
-function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('show');}
+/* ══ PATIENTS BAR (dropdown) ══ */
+function togglePatientsDropdown(){document.getElementById('sidebar').classList.toggle('open');}
+function openPatientsDropdown(){document.getElementById('sidebar').classList.add('open');}
+function closePatientsDropdown(){document.getElementById('sidebar').classList.remove('open');}
+document.addEventListener('click',e=>{const sb=document.getElementById('sidebar');if(sb&&sb.classList.contains('open')&&!sb.contains(e.target))closePatientsDropdown();});
 function filterPts(v){renderSidebar(v);}
 function renderSidebar(filter=''){
   const list=document.getElementById('patient-list');
@@ -724,8 +725,8 @@ function openModal(){['m-nom','m-prenom','m-ddn','m-tel'].forEach(id=>document.g
 function createPt(){
   const nom=document.getElementById('m-nom').value.trim(),prenom=document.getElementById('m-prenom').value.trim();
   if(!nom||!prenom){showToast('⚠️ Nom et prénom requis');return;}
-  const p={id:Date.now().toString(),nom,prenom,ddn:document.getElementById('m-ddn').value,tel:document.getElementById('m-tel').value,age:'',sexe:'',profession:'',email:'',medecin:'',ant_perso:'',ant_fam:'',traitements:'',tabac:'',nb_tabac:'',alcool:'',nb_alcool:'',consultations:[]};
-  pts.push(p);cid=p.id;save();document.getElementById('modal-new').style.display='none';renderSidebar();selectPt(p.id);closeSidebar();showToast('✅ Dossier créé');
+  const p={id:Date.now().toString(),nom,prenom,ddn:document.getElementById('m-ddn').value,tel:document.getElementById('m-tel').value,age:'',sexe:'',profession:'',email:'',medecin:'',sport:'',origine:'',ant_perso:'',ant_fam:'',traitements:'',tabac:'',nb_tabac:'',alcool:'',nb_alcool:'',consultations:[]};
+  pts.push(p);cid=p.id;save();document.getElementById('modal-new').style.display='none';renderSidebar();selectPt(p.id);closePatientsDropdown();showToast('✅ Dossier créé');
 }
 
 /* ══ SELECT PATIENT ══ */
@@ -743,6 +744,8 @@ function selectPt(id){
     if(!p.nb_alcool && first.nb_alcool) p.nb_alcool=first.nb_alcool;
   }
   renderSidebar(document.getElementById('search-input').value);
+  document.getElementById('pb-current').textContent=p.nom+' '+p.prenom;
+  closePatientsDropdown();
   document.getElementById('welcome').style.display='none';document.getElementById('patient-form').style.display='block';
   document.getElementById('top-actions').classList.add('visible');document.getElementById('fab-save').classList.add('visible');
   updateTitle(p);
@@ -750,6 +753,7 @@ function selectPt(id){
   setF('f-age', p.ddn ? (calcAge(p.ddn)||p.age||'') : (p.age||''));
   setF('f-sexe',p.sexe||'');setF('f-profession',p.profession||'');setF('f-adresse',p.adresse||'');
   setF('f-tel',p.tel||'');setF('f-email',p.email||'');setF('f-medecin',p.medecin||'');
+  setF('f-sport',p.sport||'');setF('f-origine',p.origine||'');
   setF('f-ant-perso',p.ant_perso||'');setF('f-ant-fam',p.ant_fam||'');setF('f-traitements',p.traitements||'');
   setF('f-nb-tabac',p.nb_tabac||'');setF('f-nb-alcool',p.nb_alcool||'');
   setYNGroup('f-tabac',p.tabac||'');setYNGroup('f-alcool',p.alcool||'');
@@ -776,7 +780,7 @@ function v(id){const el=document.getElementById(id);return el?el.value:'';}
 function emptyC(){
   const dn4={};for(let i=1;i<=10;i++)dn4['q'+i]='';
   const bi=l=>{const o={};l.forEach(x=>o[x]={g:'',d:''});return o;};
-  return{date:new Date().toLocaleDateString('fr-FR'),dateISO:new Date().toISOString().split('T')[0],duree:'',
+  return{date:new Date().toLocaleDateString('fr-FR'),dateISO:new Date().toISOString().split('T')[0],
     motif:'',
     dn4,
     sensi_grosse_note:'',sensi_petite_note:'',
@@ -795,7 +799,7 @@ function emptyC(){
     fc:'',heure_tension:'',notes_tension:'',
     effort_gauche_sys:'',effort_gauche_dia:'',effort_droit_sys:'',effort_droit_dia:'',
     ips_bras_g:'',ips_bras_d:'',ips_cheville_d:'',ips_cheville_g:'',
-    techniques:'',zones_traitees:'',resultats_immed:'',prochaine_seance:'',evolution:'',conseils:'',notes_suivi:'',
+    techniques:'',resultats_immed:'',conseils:'',
     fact_adresse:'',fact_cp:'',fact_ville:'',fact_mutuelle:'',fact_montant_ht:'',fact_mode:'',fact_acquittee:false,fact_num:''};
 }
 
@@ -805,9 +809,10 @@ function renderConsults(){
   const p=getP(cid);const tabs=document.getElementById('ctabs'),ccontent=document.getElementById('ccontent');
   if(!p?.consultations?.length){tabs.innerHTML='';ccontent.innerHTML=`<div style="text-align:center;padding:32px;background:var(--white);border-radius:var(--r);border:1px solid var(--border);"><div style="font-size:36px;margin-bottom:10px;">📋</div><div style="color:var(--light);font-size:14px;">Aucune consultation</div><button class="btn-add" style="margin-top:12px;" onclick="addConsult()">＋ Créer la première</button></div>`;return;}
   tabs.innerHTML=p.consultations.map((c,i)=>`<button class="ctab${i===cidx?' active':''}" onclick="switchC(${i})">Séance ${i+1} — ${c.date}</button>`).join('');
-  ccontent.innerHTML=buildForm(p.consultations[cidx],cidx);bindPills();
+  ccontent.innerHTML=buildForm(p.consultations[cidx],cidx);bindPills();autoGrow(document.getElementById('c-motif'));
 }
 function switchC(i){cidx=i;renderConsults();}
+function autoGrow(el){if(!el)return;el.style.height='auto';el.style.height=el.scrollHeight+'px';}
 function calcIPS(){
   const brasG=parseFloat(document.getElementById('c-ips-bras-g')?.value||0);
   const brasD=parseFloat(document.getElementById('c-ips-bras-d')?.value||0);
@@ -928,18 +933,20 @@ function buildForm(c,idx){
   const dn4int=dn4s>=4?'⚠️ Douleur neuropathique probable':dn4s>0?'Score insuffisant (<4)':'À compléter';
   const fs=c.force_sup||{},fi=c.force_inf||{},rot=c.rot||{},cen=c.central||{},meca=c.meca||{};
   return `<div>
-  <div class="card" id="c-date-${idx}"><div class="card-header" onclick="toggleCard('c-date-${idx}')"><div class="card-icon ci-navy">📅</div><div class="card-title">Date de consultation</div><div class="card-toggle">▾</div></div>
+  <div class="card collapsed" id="c-date-${idx}"><div class="card-header" onclick="toggleCard('c-date-${idx}')"><div class="card-icon ci-navy">📅</div><div class="card-title">Date de consultation</div><div class="card-toggle">▾</div></div>
     <div class="card-body"><div class="grid4">
       <div class="fg"><label class="fl">Date</label><input class="fi" id="c-date" type="date" value="${c.dateISO||''}" onchange="updDate(this.value)"></div>
-      <div class="fg"><label class="fl">Durée (min)</label><input class="fi" id="c-duree" type="number" placeholder="45" value="${c.duree||''}"></div>
     </div></div>
   </div>
 
-  <div class="card" id="c-anam-${idx}"><div class="card-header" onclick="toggleCard('c-anam-${idx}')"><div class="card-icon ci-amber">📝</div><div class="card-title">Anamnèse & Motif</div><div class="card-toggle">▾</div></div>
+  <div class="card collapsed" id="c-anam-${idx}"><div class="card-header" onclick="toggleCard('c-anam-${idx}')"><div class="card-icon ci-amber">📝</div><div class="card-title">Anamnèse & Motif</div><div class="card-toggle">▾</div></div>
     <div class="card-body">
-      <div class="fg"><label class="fl">Motif principal de consultation</label><textarea class="ft" id="c-motif" placeholder="Douleurs, plaintes principales…" style="min-height:70px;">${c.motif||''}</textarea></div>
-      <div class="divider"></div>
-      <div style="font-family:'Lora',serif;font-size:14px;font-weight:600;color:var(--navy);margin-bottom:4px;">Questionnaire DN4</div>
+      <div class="fg"><label class="fl">Motif principal de consultation</label><textarea class="ft" id="c-motif" placeholder="Douleurs, plaintes principales…" style="min-height:70px;overflow:hidden;resize:none;" oninput="autoGrow(this)">${c.motif||''}</textarea></div>
+    </div>
+  </div>
+
+  <div class="card collapsed" id="c-dn4-${idx}"><div class="card-header" onclick="toggleCard('c-dn4-${idx}')"><div class="card-icon ci-red">🩹</div><div class="card-title">Questionnaire DN4 <span style="font-family:'DM Sans',sans-serif;font-size:11px;font-weight:400;color:var(--light);">— optionnel</span></div><div class="card-toggle">▾</div></div>
+    <div class="card-body">
       <div style="font-size:12px;color:var(--light);margin-bottom:10px;">Score ≥ 4/10 — douleur neuropathique probable</div>
       <p style="font-size:11px;font-weight:700;color:var(--light);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px;">🗣 Entretien</p>
       <div class="dn4-grid">${dn4Item(idx,1,'La douleur brûle-t-elle ?',d.q1||'')}${dn4Item(idx,2,'Sensation de froid douloureux ?',d.q2||'')}${dn4Item(idx,3,'Décharges électriques ?',d.q3||'')}${dn4Item(idx,4,'Fourmillements ?',d.q4||'')}${dn4Item(idx,5,'Picotements ?',d.q5||'')}${dn4Item(idx,6,'Engourdissements ?',d.q6||'')}${dn4Item(idx,7,'Démangeaisons ?',d.q7||'')}</div>
@@ -949,7 +956,7 @@ function buildForm(c,idx){
     </div>
   </div>
 
-  <div class="card" id="c-neuro-${idx}"><div class="card-header" onclick="toggleCard('c-neuro-${idx}')"><div class="card-icon ci-purple">🧠</div><div class="card-title">Bilan neurologique</div><div class="card-toggle">▾</div></div>
+  <div class="card collapsed" id="c-neuro-${idx}"><div class="card-header" onclick="toggleCard('c-neuro-${idx}')"><div class="card-icon ci-purple">🧠</div><div class="card-title">Bilan neurologique</div><div class="card-toggle">▾</div></div>
     <div class="card-body">
       <div class="nb-title teal">Sensibilité</div>
       <div class="sensi-grid">${nnaEl('sensi-grosse',c.sensi_grosse||'',c.sensi_grosse_note||'','Grosse fibre')}${nnaEl('sensi-petite',c.sensi_petite||'',c.sensi_petite_note||'','Petite fibre')}</div>
@@ -997,7 +1004,7 @@ function buildForm(c,idx){
     </div>
   </div>
 
-  <div class="card" id="c-hv-${idx}"><div class="card-header" onclick="toggleCard('c-hv-${idx}')"><div class="card-icon ci-green">🌱</div><div class="card-title">Hygiène de vie</div><div class="card-toggle">▾</div></div>
+  <div class="card collapsed" id="c-hv-${idx}"><div class="card-header" onclick="toggleCard('c-hv-${idx}')"><div class="card-icon ci-green">🌱</div><div class="card-title">Hygiène de vie</div><div class="card-toggle">▾</div></div>
     <div class="card-body"><div class="psy-grid2">
       <div class="psy-card"><div class="psy-card-lbl">Qualité du sommeil (0 = très mal, 10 = très bien)</div>${psyScale(`ps-som-${idx}`,c.sommeil||0)}<textarea class="psy-q-txt" id="ps-som-note" placeholder="Durée, réveils…" style="margin-top:8px;min-height:44px;">${c.sommeil_note||''}</textarea></div>
       <div class="psy-card"><div class="psy-card-lbl">Dopants / Substances</div><textarea class="psy-q-txt" id="ps-dopants" placeholder="Cannabis, opioïdes…" style="min-height:90px;">${c.dopants||''}</textarea></div>
@@ -1014,7 +1021,7 @@ function buildForm(c,idx){
     </div>
   </div>
 
-  <div class="card" id="c-tension-${idx}"><div class="card-header" onclick="toggleCard('c-tension-${idx}')"><div class="card-icon ci-red">❤️</div><div class="card-title">Prise de tension</div><div class="card-toggle">▾</div></div>
+  <div class="card collapsed" id="c-tension-${idx}"><div class="card-header" onclick="toggleCard('c-tension-${idx}')"><div class="card-icon ci-red">❤️</div><div class="card-title">Prise de tension</div><div class="card-toggle">▾</div></div>
     <div class="card-body">
 
       <div style="font-size:11.5px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">Au repos</div>
@@ -1091,24 +1098,15 @@ function buildForm(c,idx){
     </div>
   </div>
 
-  <div class="card" id="c-trt-${idx}"><div class="card-header" onclick="toggleCard('c-trt-${idx}')"><div class="card-icon ci-green">🖐</div><div class="card-title">Traitement effectué</div><div class="card-toggle">▾</div></div>
+  <div class="card collapsed" id="c-trt-${idx}"><div class="card-header" onclick="toggleCard('c-trt-${idx}')"><div class="card-icon ci-green">🖐</div><div class="card-title">Traitement effectué</div><div class="card-toggle">▾</div></div>
     <div class="card-body"><div class="grid3">
       <div class="fg span2"><label class="fl">Techniques</label><textarea class="ft" id="c-techniques" placeholder="Manipulation, viscérale…">${c.techniques||''}</textarea></div>
-      <div class="fg"><label class="fl">Zones traitées</label><textarea class="ft" id="c-zones" placeholder="Cervical, dorsal…">${c.zones_traitees||''}</textarea></div>
       <div class="fg span2"><label class="fl">Résultats immédiats</label><textarea class="ft" id="c-resultats" placeholder="Évolution douleur…">${c.resultats_immed||''}</textarea></div>
+      <div class="fg span2"><label class="fl">Conseils pour la prochaine séance</label><textarea class="ft" id="c-conseils" placeholder="Exercices, posture, objectifs…">${c.conseils||''}</textarea></div>
     </div></div>
   </div>
 
-  <div class="card" id="c-suivi-${idx}"><div class="card-header" onclick="toggleCard('c-suivi-${idx}')"><div class="card-icon ci-blue">📆</div><div class="card-title">Suivi & Conseils</div><div class="card-toggle">▾</div></div>
-    <div class="card-body"><div class="grid3">
-      <div class="fg"><label class="fl">Prochaine séance</label><input class="fi" id="c-prochaine" type="date" value="${c.prochaine_seance||''}"></div>
-      <div class="fg"><label class="fl">Évolution</label><div class="pill-group">${['Amélioration','Stable','Aggravation','1re séance'].map(opt=>`<label class="pill${c.evolution===opt?' checked':''}"><input type="radio" name="c-evol" value="${opt}"> ${opt}</label>`).join('')}</div></div>
-      <div class="fg span2"><label class="fl">Conseils</label><textarea class="ft" id="c-conseils" placeholder="Exercices, posture…">${c.conseils||''}</textarea></div>
-      <div class="fg span2"><label class="fl">Notes de suivi</label><textarea class="ft" id="c-notes-suivi" placeholder="Objectifs, pronostic…">${c.notes_suivi||''}</textarea></div>
-    </div></div>
-  </div>
-
-  <div class="card" id="c-fact-${idx}"><div class="card-header" onclick="toggleCard('c-fact-${idx}')"><div class="card-icon ci-amber">🧾</div><div class="card-title">Note d'honoraires</div><div class="card-toggle">▾</div></div>
+  <div class="card collapsed" id="c-fact-${idx}"><div class="card-header" onclick="toggleCard('c-fact-${idx}')"><div class="card-icon ci-amber">🧾</div><div class="card-title">Note d'honoraires</div><div class="card-toggle">▾</div></div>
     <div class="card-body">
       <div class="grid2" style="margin-bottom:12px;">
         <div class="fg"><label class="fl">N° de facture</label><input class="fi" id="c-fact-num" placeholder="2025-001" value="${c.fact_num||''}"></div>
@@ -1369,7 +1367,7 @@ function generateReport(){
   const mecaNone = mecaAnoms.length === 0;
 
   const hasTension = c.ta_repos_gauche_sys||c.ta_repos_droit_sys||c.fc||c.effort_gauche_sys||c.ips_bras_g;
-  const hasTraitement = c.techniques||c.zones_traitees||c.resultats_immed;
+  const hasTraitement = c.techniques||c.resultats_immed||c.conseils;
 
   const thStyle = 'padding:5pt 7pt;background:#eaeef5;border:0.5pt solid #dce3ed;font-weight:600;text-align:left;';
   const tdStyle = 'padding:5pt 7pt;border:0.5pt solid #dce3ed;vertical-align:middle;';
@@ -1601,8 +1599,8 @@ function generateReport(){
   ${hasTraitement?`
   <h2>Traitement effectué</h2>
   ${c.techniques?`<p><em>Techniques :</em> ${c.techniques}</p>`:''}
-  ${c.zones_traitees?`<p><em>Zones traitées :</em> ${c.zones_traitees}</p>`:''}
   ${c.resultats_immed?`<p><em>Résultats immédiats :</em> ${c.resultats_immed}</p>`:''}
+  ${c.conseils?`<p><em>Conseils pour la prochaine séance :</em> ${c.conseils}</p>`:''}
   `:''}
 
   <div class="signature">
@@ -1626,11 +1624,12 @@ function savePatient(){
   p.nom=v('f-nom');p.prenom=v('f-prenom');p.ddn=v('f-ddn');p.age=v('f-age');
   p.sexe=v('f-sexe');p.profession=v('f-profession');p.adresse=v('f-adresse');
   p.tel=v('f-tel');p.email=v('f-email');p.medecin=v('f-medecin');
+  p.sport=v('f-sport');p.origine=v('f-origine');
   p.ant_perso=v('f-ant-perso');p.ant_fam=v('f-ant-fam');p.traitements=v('f-traitements');
   p.tabac=getYN('f-tabac');p.nb_tabac=v('f-nb-tabac');p.alcool=getYN('f-alcool');p.nb_alcool=v('f-nb-alcool');
   if(p.consultations?.length>0){
     const c=p.consultations[cidx];
-    c.dateISO=v('c-date');c.duree=v('c-duree');c.date=c.dateISO?new Date(c.dateISO).toLocaleDateString('fr-FR'):c.date;
+    c.dateISO=v('c-date');c.date=c.dateISO?new Date(c.dateISO).toLocaleDateString('fr-FR'):c.date;
     c.motif=v('c-motif');updateDn4(cidx);
     c.sensi_grosse=getNNA('sensi-grosse');c.sensi_grosse_note=getNNANote('sensi-grosse');c.sensi_petite=getNNA('sensi-petite');c.sensi_petite_note=getNNANote('sensi-petite');
     c.force_sup={};Object.keys(SUP_F).forEach(lv=>{c.force_sup[lv]={g:getFrb(`fsg-${lv}`),d:getFrb(`fsd-${lv}`)};});c.force_note_sup=v('fn-sup-note');
@@ -1651,14 +1650,12 @@ function savePatient(){
     c.effort_droit_sys=v('c-effort-d-sys');c.effort_droit_dia=v('c-effort-d-dia');
     c.ips_bras_g=v('c-ips-bras-g');c.ips_bras_d=v('c-ips-bras-d');
     c.ips_cheville_d=v('c-ips-chev-d');c.ips_cheville_g=v('c-ips-chev-g');
-    c.techniques=v('c-techniques');c.zones_traitees=v('c-zones');c.resultats_immed=v('c-resultats');
+    c.techniques=v('c-techniques');c.resultats_immed=v('c-resultats');c.conseils=v('c-conseils');
     c.fact_num=v('c-fact-num');c.fact_montant_ht=v('c-fact-montant');c.fact_mode=v('c-fact-mode');
     c.fact_mutuelle=v('c-fact-mutuelle');c.fact_adresse=v('c-fact-adresse');
     c.fact_cp=v('c-fact-cp');c.fact_ville=v('c-fact-ville');
     const factAcq=document.querySelector('.yng[data-id="c-fact-acquittee"] .yn-btn.yes.active');
     c.fact_acquittee=!!factAcq;
-    c.prochaine_seance=v('c-prochaine');c.conseils=v('c-conseils');c.notes_suivi=v('c-notes-suivi');
-    const evo=document.querySelector('input[name="c-evol"]:checked');if(evo)c.evolution=evo.value;
   }
   save();updateTitle(p);showToast('✅ Enregistré et synchronisé');
 }
@@ -1682,6 +1679,7 @@ function confirmDel(){
   document.getElementById('top-actions').classList.remove('visible');
   document.getElementById('fab-save').classList.remove('visible');
   document.getElementById('pt-title-name').textContent='Sélectionnez un patient';
+  document.getElementById('pb-current').textContent='Liste des patients';
   renderSidebar();
   showToast('🗑 Patient supprimé');
 }
