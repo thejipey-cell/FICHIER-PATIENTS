@@ -433,6 +433,10 @@ const firebaseConfig = {
       <button class="sb-tool" onclick="document.getElementById('import-file').click()">📥 Importer des patients (CSV)</button>
       <input type="file" id="import-file" accept=".csv,text/csv" style="display:none" onchange="readImportFile(this)">
     </div>
+    <div class="sb-tools">
+      <button class="sb-tool" onclick="document.getElementById('pages-file').click()">📄 Importer des fiches Pages</button>
+      <input type="file" id="pages-file" accept=".pages" multiple style="display:none" onchange="readPagesFiles(this)">
+    </div>
   </div>
 </div>
 
@@ -549,6 +553,18 @@ const firebaseConfig = {
     <div class="modal-btns">
       <button class="act-btn act-sec" onclick="document.getElementById('modal-del').style.display='none'">Annuler</button>
       <button class="act-btn act-del" onclick="confirmDel()">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-pages" style="display:none" onclick="if(event.target===this&&!pagesBusy)this.style.display='none'">
+  <div class="modal">
+    <h3>Importer des fiches Pages</h3>
+    <p class="modal-note">Les fichiers sont lus directement sur cet appareil. Les patients déjà présents (même nom et prénom) sont complétés : seules les cases vides sont remplies et les séances manquantes sont ajoutées. Les autres sont créés.</p>
+    <div class="brevo-status" id="pages-summary"></div>
+    <div class="modal-btns">
+      <button class="act-btn act-sec" id="pages-cancel" onclick="document.getElementById('modal-pages').style.display='none'">Fermer</button>
+      <button class="act-btn act-save" id="pages-go" onclick="runPagesImport()" disabled>📄 Importer</button>
     </div>
   </div>
 </div>
@@ -2065,6 +2081,172 @@ async function runImport(){
     st.className='brevo-status err'; st.innerHTML='⚠️ Erreur pendant l\'import : '+escH(e.message)+' — les fiches déjà envoyées sont conservées, relance l\'import pour compléter (les doublons sont ignorés).';
     btn.disabled=false;
   }
+}
+
+/* ════════════════════════════════════════
+   IMPORT FICHES PAGES (.pages, format iWork)
+════════════════════════════════════════ */
+let pagesParsed=[], pagesBusy=false;
+async function unzipEntries(buf){
+  const u=new Uint8Array(buf), dv=new DataView(buf); let e=-1;
+  for(let i=u.length-22;i>=Math.max(0,u.length-70000);i--){ if(dv.getUint32(i,true)===0x06054b50){e=i;break;} }
+  if(e<0) throw new Error('fichier non reconnu (pas un fichier .pages)');
+  const n=dv.getUint16(e+10,true); let p=dv.getUint32(e+16,true); const out={}; const td=new TextDecoder();
+  for(let k=0;k<n;k++){
+    const method=dv.getUint16(p+10,true), csize=dv.getUint32(p+20,true), nl=dv.getUint16(p+28,true), xl=dv.getUint16(p+30,true), cl=dv.getUint16(p+32,true), lo=dv.getUint32(p+42,true);
+    const name=td.decode(u.subarray(p+46,p+46+nl)); p+=46+nl+xl+cl;
+    if(!/^Index\/(Document|Tables\/(DataList|Tile)).*\.iwa$/.test(name)) continue;
+    const start=lo+30+dv.getUint16(lo+26,true)+dv.getUint16(lo+28,true);
+    let data=u.subarray(start,start+csize);
+    if(method===8) data=new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    out[name]=data;
+  }
+  return out;
+}
+function snappyRaw(src){
+  let i=0,len=0,sh=0; for(;;){const c=src[i++]; len+=(c&0x7f)*2**sh; if(c<0x80)break; sh+=7;}
+  const out=new Uint8Array(len); let o=0;
+  while(i<src.length){
+    const tag=src[i++], t=tag&3;
+    if(t===0){ let l=tag>>2; if(l>=60){const nb=l-59; l=0; for(let k=0;k<nb;k++) l+=src[i++]*2**(8*k);} l+=1; out.set(src.subarray(i,i+l),o); i+=l; o+=l; }
+    else{ let l,off;
+      if(t===1){ l=((tag>>2)&7)+4; off=((tag>>5)<<8)|src[i++]; }
+      else if(t===2){ l=(tag>>2)+1; off=src[i]|(src[i+1]<<8); i+=2; }
+      else { l=(tag>>2)+1; off=(src[i]|(src[i+1]<<8)|(src[i+2]<<16))+src[i+3]*16777216; i+=4; }
+      for(let k=0;k<l;k++){ out[o]=out[o-off]; o++; } }
+  }
+  return out;
+}
+function iwaDecode(d){
+  const parts=[]; let i=0, total=0;
+  while(i<d.length){ const n=d[i+1]|(d[i+2]<<8)|(d[i+3]<<16); const p=snappyRaw(d.subarray(i+4,i+4+n)); parts.push(p); total+=p.length; i+=4+n; }
+  const out=new Uint8Array(total); let o=0; parts.forEach(p=>{out.set(p,o);o+=p.length;}); return out;
+}
+function pbVarint(b,i){ let r=0,s=0; for(;;){const c=b[i++]; r+=(c&0x7f)*2**s; if(c<0x80)return [r,i]; s+=7;} }
+function pbFields(b){
+  const out=[]; let i=0;
+  while(i<b.length){
+    let k; [k,i]=pbVarint(b,i); const f=Math.floor(k/8), t=k&7; let v;
+    if(t===0){ [v,i]=pbVarint(b,i); } else if(t===1){ v=b.subarray(i,i+8); i+=8; }
+    else if(t===2){ let n; [n,i]=pbVarint(b,i); v=b.subarray(i,i+n); i+=n; } else if(t===5){ v=b.subarray(i,i+4); i+=4; }
+    else throw new Error('protobuf');
+    out.push([f,t,v]);
+  }
+  return out;
+}
+function* iwaObjects(bytes){
+  const b=iwaDecode(bytes); let i=0;
+  while(i<b.length){
+    let n; [n,i]=pbVarint(b,i); const info=pbFields(b.subarray(i,i+n)); i+=n;
+    const id=(info.find(x=>x[0]===1)||[])[2];
+    for(const m of info.filter(x=>x[0]===2)){
+      const mf=pbFields(m[2]); const typ=(mf.find(x=>x[0]===1)||[])[2], ln=(mf.find(x=>x[0]===3)||[0,0,0])[2];
+      yield [id,typ,b.subarray(i,i+ln)]; i+=ln;
+    }
+  }
+}
+const pagesTD=new TextDecoder();
+function pagesTable(files){
+  // listes de chaînes : clé → texte
+  const lists=[];
+  for(const [name,data] of Object.entries(files)){ if(!/DataList/.test(name)) continue;
+    for(const [id,typ,pl] of iwaObjects(data)){ const m={};
+      for(const [f,t,v] of pbFields(pl)){ if(f===3&&t===2){ const e=pbFields(v); const key=(e.find(x=>x[0]===1)||[])[2]; const s=e.find(x=>x[0]===3&&x[1]===2); if(s&&key!==undefined) m[key]=pagesTD.decode(s[2]); } }
+      if(Object.keys(m).length) lists.push(m); } }
+  const strings=lists.find(m=>Object.values(m).some(s=>/DATE DE NAISSANCE/i.test(s)))||{};
+  const grid={};
+  for(const [name,data] of Object.entries(files)){ if(!/Tables\/Tile/.test(name)) continue;
+    for(const [id,typ,pl] of iwaObjects(data)){
+      for(const [f,t,v] of pbFields(pl)){ if(f!==5||t!==2) continue;
+        const ri=pbFields(v), g=k=>(ri.find(x=>x[0]===k)||[])[2];
+        const row=g(1)||0, buf=g(6), offs=g(7), wide=g(8)||0; if(!buf||!offs) continue;
+        const dvb=new DataView(buf.buffer,buf.byteOffset,buf.byteLength), dvo=new DataView(offs.buffer,offs.byteOffset,offs.byteLength);
+        for(let col=0;col<offs.length/2;col++){ let o=dvo.getUint16(col*2,true); if(o===0xFFFF) continue; if(wide) o*=4;
+          const flags=dvb.getUint32(o+8,true); let k=o+12; if(flags&1)k+=16; if(flags&2)k+=8; if(flags&4)k+=8;
+          if(flags&8){ const sid=dvb.getInt32(k,true); if(strings[sid]!==undefined) grid[row+','+col]=strings[sid].trim(); } } } } }
+  const below=label=>{ for(const [rc,s] of Object.entries(grid)){ if(s.toUpperCase().replace(/\s+/g,' ')===label){ const [r,c]=rc.split(',').map(Number); return (grid[(r+1)+','+c]||'').trim(); } } return ''; };
+  return below;
+}
+function pagesSessions(files){
+  const seq=[];
+  for(const [name,data] of Object.entries(files)){ if(!/Index\/Document/.test(name)) continue;
+    for(const [id,typ,pl] of iwaObjects(data)){ if(typ!==2001) continue;
+      seq.push(pbFields(pl).filter(x=>x[0]===3&&x[1]===2).map(x=>pagesTD.decode(x[2])).join('')); } }
+  const clean=s=>{ s=String(s||'').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f￼]/g,'').trim(); return /^(TEXTE|Date)$/i.test(s)?'':s; };
+  const out=[];
+  seq.forEach((t,i)=>{ if(/^\s*Séance du/i.test(t)){ const motif=clean(seq[i+1]), tech=clean(seq[i+2]), date=clean(seq[i+3]); if(motif||tech||date) out.push({date,motif,tech}); } });
+  return out;
+}
+function pagesNameFromFile(fn){
+  let base=fn.replace(/\.pages$/i,'').replace(/^\d+[-_]/,'').trim(); let nom='', prenom='';
+  if(base.includes('_')){ const i=base.indexOf('_'); nom=base.slice(0,i); prenom=base.slice(i+1).replace(/_/g,' '); }
+  else { const w=base.split(/\s+/); const up=w.filter(x=>x===x.toUpperCase()&&/[A-Z]/.test(x)); if(up.length&&up.length<w.length){ nom=up.join(' '); prenom=w.filter(x=>!up.includes(x)).join(' '); } else { nom=w[0]||''; prenom=w.slice(1).join(' '); } }
+  return {nom:nom.trim().toUpperCase(), prenom:prenom.trim()};
+}
+async function parsePagesFile(file){
+  const files=await unzipEntries(await file.arrayBuffer());
+  const below=pagesTable(files); const {nom,prenom}=pagesNameFromFile(file.name);
+  const ant=[below('OPÉRATION')&&('Opération : '+below('OPÉRATION')), below('ANTÉCÉDENTS MÉDICAUX'), below('RADIO/IRM')&&('Radio/IRM : '+below('RADIO/IRM'))].filter(Boolean).join('\n');
+  const sessions=pagesSessions(files).map(s=>({...s,dateISO:frDateToISO(s.date)}));
+  return {file:file.name,nom,prenom,ddn:frDateToISO(below('DATE DE NAISSANCE')),adresse:below('ADRESSE'),tel:frPhone(below('TELÉPHONE')||below('TÉLÉPHONE')),
+    sport:below('ACTIVITÉ'),profession:below('PROFESSION'),origine:below('RECOMMANDÉ PAR'),ant_perso:ant,traitements:below('TRAITEMENT'),sessions};
+}
+function pagesPlan(){
+  const idx={}; pts.forEach(p=>{ const k=normTxt(p.nom)+'|'+normTxt(p.prenom); (idx[k]=idx[k]||[]).push(p); });
+  let created=0, updated=0, newSess=0;
+  const plan=pagesParsed.filter(r=>r.ok).map(r=>{
+    const cands=idx[normTxt(r.nom)+'|'+normTxt(r.prenom)]||[];
+    const target=cands.find(p=>r.ddn&&p.ddn===r.ddn)||cands.find(p=>!p.ddn||!r.ddn)||null;
+    const existing=target?(target.consultations||[]):[];
+    const add=r.sessions.filter(s=>(s.dateISO||s.motif)&&!existing.some(c=>(c.dateISO||'')===(s.dateISO||'')&&normTxt(c.motif).slice(0,40)===normTxt(s.motif).slice(0,40)));
+    newSess+=add.length; if(target) updated++; else created++;
+    return {r,target,add};
+  });
+  return {plan,created,updated,newSess};
+}
+async function readPagesFiles(input){
+  const list=[...(input.files||[])]; input.value=''; if(!list.length) return;
+  closePatientsDropdown(); pagesParsed=[];
+  const st=document.getElementById('pages-summary'), go=document.getElementById('pages-go');
+  st.className='brevo-status'; go.disabled=true; document.getElementById('modal-pages').style.display='flex';
+  for(let i=0;i<list.length;i++){
+    st.innerHTML=`⏳ Lecture des fiches… ${i+1} / ${list.length}`;
+    try{ pagesParsed.push({ok:true,...await parsePagesFile(list[i])}); }
+    catch(e){ pagesParsed.push({ok:false,file:list[i].name,err:e.message}); }
+    if(i%20===19) await new Promise(r=>setTimeout(r,0));
+  }
+  const {created,updated,newSess}=pagesPlan(); const bad=pagesParsed.filter(r=>!r.ok);
+  st.innerHTML=`<strong>${pagesParsed.length}</strong> fiches lues → <strong>${updated}</strong> patients complétés, <strong>${created}</strong> créés, <strong>${newSess}</strong> séances ajoutées.`+
+    (bad.length?`<br>⚠️ ${bad.length} fichier(s) illisible(s) : ${bad.slice(0,5).map(b=>escH(b.file)).join(', ')}${bad.length>5?'…':''}`:'');
+  go.disabled=!(created||updated);
+}
+async function runPagesImport(){
+  const st=document.getElementById('pages-summary'), go=document.getElementById('pages-go');
+  const {plan}=pagesPlan(); go.disabled=true; pagesBusy=true;
+  const fill=(p,k,v)=>{ if(v&&!String(p[k]||'').trim()) p[k]=v; };
+  const changed=[]; let base=Date.now();
+  plan.forEach(({r,target,add})=>{
+    let p=target;
+    if(!p){ p={id:String(base++),nom:r.nom,prenom:r.prenom,ddn:'',tel:'',age:'',sexe:'',profession:'',email:'',adresse:'',newsletter:false,medecin:'',sport:'',origine:'',ant_perso:'',ant_fam:'',traitements:'',tabac:'',nb_tabac:'',alcool:'',nb_alcool:'',consultations:[]}; pts.push(p); }
+    ['ddn','adresse','tel','sport','profession','origine','ant_perso','traitements'].forEach(k=>fill(p,k,r[k]));
+    if(p.ddn&&!p.age) p.age=calcAge(p.ddn)||'';
+    p.consultations=p.consultations||[];
+    add.forEach(s=>{ const c=emptyC(); c.dateISO=s.dateISO||''; c.date=s.dateISO?new Date(s.dateISO).toLocaleDateString('fr-FR'):(s.date||''); c.motif=s.motif; c.techniques=s.tech; p.consultations.push(c); });
+    p.consultations.sort((a,b)=>(a.dateISO||'').localeCompare(b.dateISO||''));
+    changed.push(p);
+  });
+  try{
+    if(firebaseReady&&currentUser){
+      for(let i=0;i<changed.length;i+=200){
+        const b=db.batch(); changed.slice(i,i+200).forEach(p=>b.set(db.collection('patients').doc(p.id),Object.assign({},p,{userId:currentUser.uid})));
+        st.innerHTML=`⏳ Enregistrement… ${Math.min(i+200,changed.length)} / ${changed.length}`; await b.commit();
+      }
+    }
+    localStorage.setItem('etio_local', JSON.stringify(pts)); renderSidebar(document.getElementById('search-input').value);
+    st.className='brevo-status ok'; st.innerHTML=`✅ ${changed.length} fiches patients mises à jour ou créées.`;
+    showToast('📄 Fiches Pages importées');
+  }catch(e){ st.className='brevo-status err'; st.innerHTML='⚠️ Erreur : '+escH(e.message)+' — relance l\'import, les séances déjà ajoutées ne seront pas dupliquées.'; go.disabled=false; }
+  pagesBusy=false;
 }
 
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();if(cid)savePatient();}});
