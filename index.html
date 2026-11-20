@@ -112,6 +112,16 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 .more-item{padding:12px 16px;font-size:13.5px;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .15s;}
 .more-item:hover{background:var(--bg);}
 .more-item.danger{color:var(--red);}
+.sb-tools{display:flex;gap:8px;margin:0 12px 12px;}
+.sb-tool{flex:1;padding:9px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#fff;font-size:12.5px;cursor:pointer;font-family:inherit;}
+.sb-tool:hover{background:rgba(255,255,255,.14);}
+.nl-check{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);cursor:pointer;font-size:13.5px;color:var(--text);}
+.nl-check input{width:18px;height:18px;accent-color:var(--teal);cursor:pointer;}
+.modal-note{font-size:12.5px;color:var(--mid);line-height:1.55;margin:6px 0 12px;}
+.modal-note a{color:var(--teal);}
+.brevo-status{font-size:12.5px;margin-top:10px;line-height:1.5;min-height:18px;}
+.brevo-status.err{color:var(--red);}
+.brevo-status.ok{color:var(--teal);}
 
 /* ══ CONTENT ══ */
 #content{flex:1;overflow-y:auto;padding:16px;}
@@ -415,6 +425,10 @@ const firebaseConfig = {
     </div>
     <div id="patient-list"><div class="empty-list">Chargement…</div></div>
     <button id="btn-new" onclick="openModal()">＋ Nouveau patient</button>
+    <div class="sb-tools">
+      <button class="sb-tool" onclick="openEmailExport()">📧 Exporter les e-mails</button>
+      <button class="sb-tool" onclick="openBrevo()">📨 Newsletter Brevo</button>
+    </div>
   </div>
 </div>
 
@@ -457,10 +471,12 @@ const firebaseConfig = {
             <div class="fg"><label class="fl">Profession</label><input class="fi" id="f-profession" placeholder="Infirmière…"></div>
             <div class="fg"><label class="fl">Téléphone</label><input class="fi" id="f-tel" type="tel" placeholder="06 00 00 00 00"></div>
             <div class="fg"><label class="fl">E-mail</label><input class="fi" id="f-email" type="email" placeholder="patient@mail.fr"></div>
+            <div class="fg"><label class="fl">Adresse</label><input class="fi" id="f-adresse" placeholder="12 rue de Paris, 76600 Le Havre"></div>
             <div class="fg"><label class="fl">Médecin traitant</label><input class="fi" id="f-medecin" placeholder="Dr. Martin"></div>
             <div class="fg"><label class="fl">Sport</label><input class="fi" id="f-sport" placeholder="Course à pied, natation…"></div>
             <div class="fg"><label class="fl">Vous venez de la part de qui ?</label><input class="fi" id="f-origine" placeholder="Bouche à oreille, médecin, internet…"></div>
           </div>
+          <label class="nl-check" style="margin-top:12px;"><input type="checkbox" id="f-newsletter"> Accepte de recevoir la newsletter du cabinet (par e-mail)</label>
           <div class="divider"></div>
           <div class="grid3">
             <div class="fg span2"><label class="fl">Antécédents personnels</label><textarea class="ft" id="f-ant-perso" placeholder="Chirurgies, maladies, traumatismes…"></textarea></div>
@@ -529,6 +545,40 @@ const firebaseConfig = {
     <div class="modal-btns">
       <button class="act-btn act-sec" onclick="document.getElementById('modal-del').style.display='none'">Annuler</button>
       <button class="act-btn act-del" onclick="confirmDel()">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-emails" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <h3>Exporter les e-mails</h3>
+    <p class="modal-note">Fichier CSV avec uniquement l'e-mail, le prénom et le nom (aucune donnée de santé). Il s'importe directement dans Brevo ou Excel.</p>
+    <label class="nl-check"><input type="checkbox" id="exp-consent" checked onchange="updateEmailCount()"> Uniquement les patients ayant accepté la newsletter</label>
+    <div class="brevo-status" id="exp-count"></div>
+    <div class="modal-btns">
+      <button class="act-btn act-sec" onclick="document.getElementById('modal-emails').style.display='none'">Annuler</button>
+      <button class="act-btn act-save" onclick="exportEmails()">⬇ Télécharger</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-brevo" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <h3>Newsletter — Brevo</h3>
+    <p class="modal-note">Envoie les contacts (e-mail, prénom, nom) dans une liste Brevo. Ensuite, tu crées et envoies ta newsletter depuis <a href="https://app.brevo.com/marketing-campaign" target="_blank" rel="noopener">Brevo</a>, qui gère le lien de désinscription.<br>Clé API : Brevo → ton profil → <em>SMTP &amp; API</em> → <em>Clés API</em>. Elle reste enregistrée sur cet appareil uniquement.</p>
+    <div class="fg" style="margin-bottom:10px;"><label class="fl">Clé API Brevo</label><input class="fi" id="brevo-key" type="password" placeholder="xkeysib-…" autocomplete="off"></div>
+    <button class="act-btn act-sec" onclick="brevoConnect()" style="width:100%;margin-bottom:12px;">🔌 Connecter / rafraîchir les listes</button>
+    <div id="brevo-step2" style="display:none;">
+      <div class="fg" style="margin-bottom:10px;"><label class="fl">Liste de destination</label>
+        <select class="fs" id="brevo-list" onchange="document.getElementById('brevo-newlist-wrap').style.display=this.value==='__new'?'block':'none'"></select>
+      </div>
+      <div class="fg" id="brevo-newlist-wrap" style="display:none;margin-bottom:10px;"><label class="fl">Nom de la nouvelle liste</label><input class="fi" id="brevo-newlist" value="Patients — newsletter"></div>
+      <label class="nl-check"><input type="checkbox" id="brevo-consent" checked onchange="updateBrevoCount()"> Uniquement les patients ayant accepté la newsletter</label>
+    </div>
+    <div class="brevo-status" id="brevo-status"></div>
+    <div class="modal-btns">
+      <button class="act-btn act-sec" onclick="document.getElementById('modal-brevo').style.display='none'">Fermer</button>
+      <button class="act-btn act-save" id="brevo-sync-btn" onclick="brevoSync()" disabled>📨 Synchroniser</button>
     </div>
   </div>
 </div>
@@ -725,7 +775,7 @@ function openModal(){['m-nom','m-prenom','m-ddn','m-tel'].forEach(id=>document.g
 function createPt(){
   const nom=document.getElementById('m-nom').value.trim(),prenom=document.getElementById('m-prenom').value.trim();
   if(!nom||!prenom){showToast('⚠️ Nom et prénom requis');return;}
-  const p={id:Date.now().toString(),nom,prenom,ddn:document.getElementById('m-ddn').value,tel:document.getElementById('m-tel').value,age:'',sexe:'',profession:'',email:'',medecin:'',sport:'',origine:'',ant_perso:'',ant_fam:'',traitements:'',tabac:'',nb_tabac:'',alcool:'',nb_alcool:'',consultations:[]};
+  const p={id:Date.now().toString(),nom,prenom,ddn:document.getElementById('m-ddn').value,tel:document.getElementById('m-tel').value,age:'',sexe:'',profession:'',email:'',adresse:'',newsletter:false,medecin:'',sport:'',origine:'',ant_perso:'',ant_fam:'',traitements:'',tabac:'',nb_tabac:'',alcool:'',nb_alcool:'',consultations:[]};
   pts.push(p);cid=p.id;save();document.getElementById('modal-new').style.display='none';renderSidebar();selectPt(p.id);closePatientsDropdown();showToast('✅ Dossier créé');
 }
 
@@ -754,6 +804,7 @@ function selectPt(id){
   setF('f-sexe',p.sexe||'');setF('f-profession',p.profession||'');setF('f-adresse',p.adresse||'');
   setF('f-tel',p.tel||'');setF('f-email',p.email||'');setF('f-medecin',p.medecin||'');
   setF('f-sport',p.sport||'');setF('f-origine',p.origine||'');
+  document.getElementById('f-newsletter').checked=!!p.newsletter;
   setF('f-ant-perso',p.ant_perso||'');setF('f-ant-fam',p.ant_fam||'');setF('f-traitements',p.traitements||'');
   setF('f-nb-tabac',p.nb_tabac||'');setF('f-nb-alcool',p.nb_alcool||'');
   setYNGroup('f-tabac',p.tabac||'');setYNGroup('f-alcool',p.alcool||'');
@@ -1625,6 +1676,7 @@ function savePatient(){
   p.sexe=v('f-sexe');p.profession=v('f-profession');p.adresse=v('f-adresse');
   p.tel=v('f-tel');p.email=v('f-email');p.medecin=v('f-medecin');
   p.sport=v('f-sport');p.origine=v('f-origine');
+  p.newsletter=document.getElementById('f-newsletter').checked;
   p.ant_perso=v('f-ant-perso');p.ant_fam=v('f-ant-fam');p.traitements=v('f-traitements');
   p.tabac=getYN('f-tabac');p.nb_tabac=v('f-nb-tabac');p.alcool=getYN('f-alcool');p.nb_alcool=v('f-nb-alcool');
   if(p.consultations?.length>0){
@@ -1682,6 +1734,219 @@ function confirmDel(){
   document.getElementById('pb-current').textContent='Liste des patients';
   renderSidebar();
   showToast('🗑 Patient supprimé');
+}
+
+
+/* ════════════════════════════════════════
+   SECTIONS REPLIABLES (Après effort / IPS)
+════════════════════════════════════════ */
+function toggleSection(id){
+  const el=document.getElementById(id); if(!el) return;
+  const open = el.style.display==='none';
+  el.style.display = open ? '' : 'none';
+  const caret = el.previousElementSibling && el.previousElementSibling.querySelector('span');
+  if(caret) caret.textContent = open ? '▾' : '▸';
+}
+
+/* ════════════════════════════════════════
+   OUTILS
+════════════════════════════════════════ */
+function escH(s){return String(s==null?'':s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+function nl2br(s){return escH(s).replace(/\n/g,'<br>');}
+function downloadFile(name, content, type){
+  const blob = new Blob([content], {type});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 10000);
+}
+function slug(s){return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase();}
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/* ════════════════════════════════════════
+   EXPORT JSON (patient courant)
+════════════════════════════════════════ */
+function exportJSON(){
+  if(cid) savePatient();
+  const p=getP(cid); if(!p){ showToast('⚠️ Sélectionne un patient'); return; }
+  const d=new Date().toISOString().split('T')[0];
+  downloadFile(`patient-${slug(p.nom)}-${slug(p.prenom)}-${d}.json`, JSON.stringify(p,null,2), 'application/json');
+  showToast('⬇ Export JSON téléchargé');
+}
+
+/* ════════════════════════════════════════
+   IMPRIMER LA FICHE
+════════════════════════════════════════ */
+function printFiche(){
+  if(cid) savePatient();
+  const p=getP(cid); if(!p){ showToast('⚠️ Sélectionne un patient'); return; }
+  const row=(l,val)=>val?`<tr><th>${escH(l)}</th><td>${nl2br(val)}</td></tr>`:'';
+  const yn=x=>x==='oui'?'Oui':x==='non'?'Non':x==='nsp'?'NSP':'';
+  const cons=(p.consultations||[]).map((c,i)=>`
+    <div class="cons">
+      <h3>Consultation ${i+1} — ${escH(c.date||'')}</h3>
+      <table>
+        ${row('Motif', c.motif)}
+        ${row('Techniques', c.techniques)}
+        ${row('Résultats immédiats', c.resultats_immed)}
+        ${row('Conseils pour la prochaine séance', c.conseils)}
+      </table>
+    </div>`).join('');
+  const html=`<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
+  <title>Fiche — ${escH(p.nom)} ${escH(p.prenom)}</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;color:#1a2744;margin:28px;font-size:12.5px;}
+    h1{font-size:20px;margin:0 0 4px;} .sub{color:#667;margin-bottom:18px;}
+    h2{font-size:14px;border-bottom:2px solid #2a7f6f;padding-bottom:4px;margin:20px 0 8px;color:#2a7f6f;}
+    h3{font-size:13px;margin:14px 0 6px;}
+    table{width:100%;border-collapse:collapse;} th{text-align:left;width:32%;vertical-align:top;color:#556;font-weight:600;padding:4px 8px 4px 0;}
+    td{padding:4px 0;vertical-align:top;} .cons{page-break-inside:avoid;}
+    .actions{margin-bottom:16px;} .actions button{padding:8px 16px;font-size:13px;cursor:pointer;}
+    @media print{.actions{display:none;} body{margin:12mm;}}
+  </style></head><body>
+  <div class="actions"><button onclick="window.print()">🖨 Imprimer</button></div>
+  <h1>${escH(p.nom)} ${escH(p.prenom)}</h1>
+  <div class="sub">Fiche patient — imprimée le ${new Date().toLocaleDateString('fr-FR')}</div>
+  <h2>Informations personnelles</h2>
+  <table>
+    ${row('Date de naissance', p.ddn?new Date(p.ddn).toLocaleDateString('fr-FR'):'')}
+    ${row('Âge', p.age)}${row('Sexe', p.sexe)}${row('Profession', p.profession)}
+    ${row('Téléphone', p.tel)}${row('E-mail', p.email)}${row('Adresse', p.adresse)}
+    ${row('Médecin traitant', p.medecin)}${row('Sport', p.sport)}${row('Adressé par', p.origine)}
+  </table>
+  <h2>Antécédents &amp; hygiène de vie</h2>
+  <table>
+    ${row('Antécédents personnels', p.ant_perso)}${row('Antécédents familiaux', p.ant_fam)}
+    ${row('Traitements en cours', p.traitements)}
+    ${row('Tabagisme', yn(p.tabac)+(p.nb_tabac?` (${p.nb_tabac} / jour)`:''))}
+    ${row('Alcool', yn(p.alcool)+(p.nb_alcool?` (${p.nb_alcool} verres / semaine)`:''))}
+  </table>
+  ${cons?`<h2>Consultations</h2>${cons}`:''}
+  </body></html>`;
+  printHTML(html);
+}
+
+/* ════════════════════════════════════════
+   CONTACTS NEWSLETTER (e-mail, prénom, nom)
+════════════════════════════════════════ */
+function getContacts(onlyConsent){
+  const seen=new Set(), out=[];
+  let invalid=0;
+  pts.forEach(p=>{
+    const email=String(p.email||'').trim().toLowerCase();
+    if(!email) return;
+    if(!EMAIL_RE.test(email)){ invalid++; return; }
+    if(onlyConsent && !p.newsletter) return;
+    if(seen.has(email)) return;
+    seen.add(email);
+    out.push({email, prenom:(p.prenom||'').trim(), nom:(p.nom||'').trim()});
+  });
+  out.sort((a,b)=>(a.nom+a.prenom).localeCompare(b.nom+b.prenom,'fr'));
+  return {contacts:out, invalid};
+}
+function countLabel(onlyConsent){
+  const {contacts,invalid}=getContacts(onlyConsent);
+  const total=getContacts(false).contacts.length;
+  let t=`<strong>${contacts.length}</strong> contact${contacts.length>1?'s':''}`;
+  if(onlyConsent) t+=` sur ${total} patient${total>1?'s':''} avec e-mail`;
+  if(invalid) t+=` · ${invalid} e-mail${invalid>1?'s':''} invalide${invalid>1?'s':''} ignoré${invalid>1?'s':''}`;
+  return t;
+}
+function openEmailExport(){
+  closePatientsDropdown();
+  updateEmailCount();
+  document.getElementById('modal-emails').style.display='flex';
+}
+function updateEmailCount(){
+  document.getElementById('exp-count').innerHTML=countLabel(document.getElementById('exp-consent').checked);
+}
+function exportEmails(){
+  const only=document.getElementById('exp-consent').checked;
+  const {contacts}=getContacts(only);
+  if(!contacts.length){ showToast('⚠️ Aucun e-mail à exporter'); return; }
+  const q=s=>'"'+String(s).replace(/"/g,'""')+'"';
+  const csv='﻿'+['EMAIL;PRENOM;NOM', ...contacts.map(c=>[c.email,c.prenom,c.nom].map(q).join(';'))].join('\r\n');
+  downloadFile(`emails-patients-${new Date().toISOString().split('T')[0]}.csv`, csv, 'text/csv;charset=utf-8');
+  document.getElementById('modal-emails').style.display='none';
+  showToast(`⬇ ${contacts.length} e-mail${contacts.length>1?'s':''} exporté${contacts.length>1?'s':''}`);
+}
+
+/* ════════════════════════════════════════
+   BREVO (API v3) — la clé reste sur cet appareil
+════════════════════════════════════════ */
+const BREVO_API='https://api.brevo.com/v3';
+let brevoAttrs={first:'PRENOM', last:'NOM'};
+function brevoKey(){ return document.getElementById('brevo-key').value.trim(); }
+function brevoMsg(text, kind){ const el=document.getElementById('brevo-status'); el.className='brevo-status'+(kind?' '+kind:''); el.innerHTML=text; }
+async function brevoFetch(path, opts={}){
+  const res = await fetch(BREVO_API+path, Object.assign({}, opts, {headers:{'api-key':brevoKey(),'accept':'application/json','content-type':'application/json'}}));
+  let data=null; try{ data=await res.json(); }catch(e){}
+  if(!res.ok){
+    let m=(data&&data.message)||('Erreur '+res.status);
+    if(res.status===401) m='Clé API refusée. Vérifie la clé, ou autorise cette adresse IP dans Brevo (SMTP & API → Sécurité → IP autorisées). '+escH(m);
+    throw new Error(m);
+  }
+  return data;
+}
+function openBrevo(){
+  closePatientsDropdown();
+  document.getElementById('brevo-key').value=localStorage.getItem('brevo_api_key')||'';
+  brevoMsg('');
+  document.getElementById('modal-brevo').style.display='flex';
+  if(brevoKey()) brevoConnect();
+}
+function updateBrevoCount(){
+  if(document.getElementById('brevo-step2').style.display!=='none')
+    brevoMsg(countLabel(document.getElementById('brevo-consent').checked)+' seront envoyés dans la liste.');
+}
+async function brevoConnect(){
+  const key=brevoKey();
+  if(!key){ brevoMsg('⚠️ Colle ta clé API Brevo.','err'); return; }
+  localStorage.setItem('brevo_api_key', key);
+  brevoMsg('⏳ Connexion à Brevo…');
+  try{
+    const [lists, attrs] = await Promise.all([brevoFetch('/contacts/lists?limit=50&offset=0'), brevoFetch('/contacts/attributes')]);
+    const names=(attrs.attributes||[]).map(a=>a.name);
+    brevoAttrs = names.includes('PRENOM')||names.includes('NOM') ? {first:'PRENOM',last:'NOM'} : {first:'FIRSTNAME',last:'LASTNAME'};
+    const sel=document.getElementById('brevo-list');
+    const saved=localStorage.getItem('brevo_list_id');
+    sel.innerHTML=(lists.lists||[]).map(l=>`<option value="${l.id}">${escH(l.name)} (${l.uniqueSubscribers??l.totalSubscribers??0} contacts)</option>`).join('')+'<option value="__new">＋ Créer une nouvelle liste…</option>';
+    if(saved && [...sel.options].some(o=>o.value===saved)) sel.value=saved;
+    else if(!(lists.lists||[]).length) sel.value='__new';
+    document.getElementById('brevo-newlist-wrap').style.display=sel.value==='__new'?'block':'none';
+    document.getElementById('brevo-step2').style.display='block';
+    document.getElementById('brevo-sync-btn').disabled=false;
+    brevoMsg('✅ Connecté à Brevo. '+countLabel(document.getElementById('brevo-consent').checked)+' seront envoyés.','ok');
+  }catch(e){
+    document.getElementById('brevo-step2').style.display='none';
+    document.getElementById('brevo-sync-btn').disabled=true;
+    brevoMsg('⚠️ '+escH(e.message),'err');
+  }
+}
+async function brevoSync(){
+  const only=document.getElementById('brevo-consent').checked;
+  const {contacts}=getContacts(only);
+  if(!contacts.length){ brevoMsg('⚠️ Aucun contact à envoyer'+(only?' : coche « Accepte la newsletter » dans les fiches concernées.':'.'),'err'); return; }
+  const btn=document.getElementById('brevo-sync-btn'); btn.disabled=true;
+  try{
+    let listId=document.getElementById('brevo-list').value;
+    if(listId==='__new'){
+      brevoMsg('⏳ Création de la liste…');
+      const name=document.getElementById('brevo-newlist').value.trim()||'Patients — newsletter';
+      const folders=await brevoFetch('/contacts/folders?limit=10&offset=0');
+      let folderId=folders.folders&&folders.folders[0]&&folders.folders[0].id;
+      if(!folderId){ folderId=(await brevoFetch('/contacts/folders',{method:'POST',body:JSON.stringify({name:'Cabinet'})})).id; }
+      listId=(await brevoFetch('/contacts/lists',{method:'POST',body:JSON.stringify({name, folderId})})).id;
+    }
+    listId=parseInt(listId,10);
+    localStorage.setItem('brevo_list_id', String(listId));
+    brevoMsg(`⏳ Envoi de ${contacts.length} contacts…`);
+    const jsonBody=contacts.map(c=>({email:c.email, attributes:{[brevoAttrs.first]:c.prenom, [brevoAttrs.last]:c.nom}}));
+    await brevoFetch('/contacts/import',{method:'POST',body:JSON.stringify({jsonBody, listIds:[listId], updateExistingContacts:true, emptyContactsAttributes:false})});
+    brevoMsg(`✅ ${contacts.length} contact${contacts.length>1?'s':''} envoyé${contacts.length>1?'s':''} à Brevo. L'import prend quelques minutes. Ensuite : <a href="https://app.brevo.com/marketing-campaign" target="_blank" rel="noopener">créer la campagne dans Brevo</a>.`,'ok');
+  }catch(e){
+    brevoMsg('⚠️ '+escH(e.message),'err');
+  }finally{ btn.disabled=false; }
 }
 
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();if(cid)savePatient();}});
