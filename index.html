@@ -429,6 +429,10 @@ const firebaseConfig = {
       <button class="sb-tool" onclick="openEmailExport()">📧 Exporter les e-mails</button>
       <button class="sb-tool" onclick="openBrevo()">📨 Newsletter Brevo</button>
     </div>
+    <div class="sb-tools">
+      <button class="sb-tool" onclick="document.getElementById('import-file').click()">📥 Importer des patients (CSV)</button>
+      <input type="file" id="import-file" accept=".csv,text/csv" style="display:none" onchange="readImportFile(this)">
+    </div>
   </div>
 </div>
 
@@ -545,6 +549,19 @@ const firebaseConfig = {
     <div class="modal-btns">
       <button class="act-btn act-sec" onclick="document.getElementById('modal-del').style.display='none'">Annuler</button>
       <button class="act-btn act-del" onclick="confirmDel()">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-import" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <h3>Importer des patients</h3>
+    <p class="modal-note">Fichier CSV exporté de ton logiciel de rendez-vous (colonnes Nom, Prénom, Email, Date de naissance, Téléphone…). Les patients déjà présents dans l'appli (même e-mail, ou même nom + prénom + date de naissance) ne sont pas recréés.</p>
+    <label class="nl-check"><input type="checkbox" id="imp-rdv" onchange="updateImportSummary()"> Uniquement les patients venus au moins une fois (RDV passés &gt; 0)</label>
+    <div class="brevo-status" id="imp-summary"></div>
+    <div class="modal-btns">
+      <button class="act-btn act-sec" onclick="document.getElementById('modal-import').style.display='none'">Annuler</button>
+      <button class="act-btn act-save" id="imp-go" onclick="runImport()">📥 Importer</button>
     </div>
   </div>
 </div>
@@ -1947,6 +1964,107 @@ async function brevoSync(){
   }catch(e){
     brevoMsg('⚠️ '+escH(e.message),'err');
   }finally{ btn.disabled=false; }
+}
+
+/* ════════════════════════════════════════
+   IMPORT CSV (export logiciel de RDV)
+════════════════════════════════════════ */
+let importRows=[];
+function parseCSV(text){
+  text=text.replace(/^﻿/,'');
+  const first=text.split(/\r?\n/,1)[0]; const sep=(first.split(';').length>=first.split(',').length)?';':',';
+  const rows=[]; let row=[], f='', q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){f+='"';i++;} else q=false; } else f+=c; }
+    else if(c==='"') q=true;
+    else if(c===sep){ row.push(f); f=''; }
+    else if(c==='\n'){ row.push(f); rows.push(row); row=[]; f=''; }
+    else if(c!=='\r') f+=c;
+  }
+  if(f!==''||row.length){ row.push(f); rows.push(row); }
+  const head=rows.shift().map(h=>h.trim());
+  return rows.filter(r=>r.some(x=>x.trim())).map(r=>{const o={};head.forEach((h,i)=>o[h]=(r[i]||'').trim());return o;});
+}
+const normTxt=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+function frDateToISO(d){ const m=String(d||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:''; }
+function frPhone(t){ t=String(t||'').replace(/^'/,'').replace(/\s/g,''); if(t.startsWith('+33')) t='0'+t.slice(3); return /^0\d{9}$/.test(t)?t.replace(/(\d{2})(?=\d)/g,'$1 '):t; }
+function mapImportRow(r){
+  let prenom=r['Prénom']||''; if(/^(melle|mlle|mme|mr|m\.?|madame|monsieur)$/i.test(prenom)) prenom='';
+  const g=(r['Genre']||'').toLowerCase();
+  const adr=[r['Adresse'],[r['Code Postal'],r['Ville']].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  const orig=[r['Provenance'],r['Commentaire provenance']].filter(Boolean).join(' — ');
+  const note=r['Note']?('Note (import) : '+r['Note']):'';
+  const anam=r['Anamnèse']?('Anamnèse (import) : '+r['Anamnèse']):'';
+  const ddn=frDateToISO(r['Date de naissance']);
+  return {nom:(r['Nom']||'').toUpperCase(),prenom,ddn,tel:frPhone(r['Téléphone']),age:ddn?(calcAge(ddn)||''):'',
+    sexe:g==='f'?'Féminin':g==='m'||g==='h'?'Masculin':'',profession:'',email:String(r['Email']||'').toLowerCase(),
+    adresse:adr,newsletter:true,medecin:'',sport:'',origine:orig,ant_perso:[note,anam].filter(Boolean).join('\n'),ant_fam:'',
+    traitements:'',tabac:'',nb_tabac:'',alcool:'',nb_alcool:'',consultations:[],import_id:String(r['ID']||''),
+    _rdv:parseInt(r['Nombre de RDV passés']||'0',10)||0};
+}
+function importCandidates(){
+  const onlyRdv=document.getElementById('imp-rdv').checked;
+  const byEmail=new Set(pts.map(p=>String(p.email||'').toLowerCase()).filter(Boolean));
+  const byKey=new Set(pts.map(p=>normTxt(p.nom)+'|'+normTxt(p.prenom)+'|'+(p.ddn||'')));
+  const byName=new Set(pts.map(p=>normTxt(p.nom)+'|'+normTxt(p.prenom)));
+  const byImp=new Set(pts.map(p=>p.import_id).filter(Boolean));
+  const out=[]; let dup=0, skipped=0, empty=0;
+  importRows.forEach(r=>{
+    const p=mapImportRow(r);
+    if(!p.nom){ empty++; return; }
+    if(onlyRdv && p._rdv<1){ skipped++; return; }
+    const k=normTxt(p.nom)+'|'+normTxt(p.prenom)+'|'+(p.ddn||'');
+    const nk=normTxt(p.nom)+'|'+normTxt(p.prenom);
+    if((p.import_id&&byImp.has(p.import_id))||(p.email&&byEmail.has(p.email))||byKey.has(k)||(!p.ddn&&byName.has(nk))){ dup++; return; }
+    if(p.email) byEmail.add(p.email); byKey.add(k); byName.add(nk); if(p.import_id) byImp.add(p.import_id);
+    out.push(p);
+  });
+  return {out,dup,skipped,empty};
+}
+function readImportFile(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{ importRows=parseCSV(rd.result); }catch(e){ showToast('⚠️ Fichier illisible'); return; }
+    if(!importRows.length||!('Nom' in importRows[0])){ showToast('⚠️ Colonne « Nom » introuvable dans le fichier'); return; }
+    closePatientsDropdown(); updateImportSummary();
+    document.getElementById('imp-go').disabled=false;
+    document.getElementById('modal-import').style.display='flex';
+  };
+  rd.readAsText(f,'utf-8'); input.value='';
+}
+function updateImportSummary(){
+  const {out,dup,skipped}=importCandidates();
+  let t=`<strong>${importRows.length}</strong> lignes dans le fichier → <strong>${out.length}</strong> nouvelles fiches à créer`;
+  const ex=[]; if(dup) ex.push(`${dup} déjà présentes`); if(skipped) ex.push(`${skipped} jamais venus`);
+  if(ex.length) t+=` (ignorées : ${ex.join(', ')})`;
+  document.getElementById('imp-summary').className='brevo-status'; document.getElementById('imp-summary').innerHTML=t;
+}
+async function runImport(){
+  const {out}=importCandidates(); const st=document.getElementById('imp-summary'); const btn=document.getElementById('imp-go');
+  if(!out.length){ st.innerHTML='Aucune nouvelle fiche à créer.'; return; }
+  btn.disabled=true;
+  const base=Date.now();
+  const list=out.map((p,i)=>{const q=Object.assign({},p); delete q._rdv; q.id=String(base+i); return q;});
+  try{
+    if(firebaseReady&&currentUser){
+      for(let i=0;i<list.length;i+=400){
+        const b=db.batch();
+        list.slice(i,i+400).forEach(p=>b.set(db.collection('patients').doc(p.id),Object.assign({},p,{userId:currentUser.uid})));
+        st.innerHTML=`⏳ Import en cours… ${Math.min(i+400,list.length)} / ${list.length}`;
+        await b.commit();
+      }
+    }
+    pts=pts.concat(list.filter(p=>!pts.some(x=>x.id===p.id)));
+    localStorage.setItem('etio_local', JSON.stringify(pts));
+    renderSidebar(document.getElementById('search-input').value);
+    st.className='brevo-status ok'; st.innerHTML=`✅ ${list.length} fiches patients créées.`;
+    showToast(`📥 ${list.length} patients importés`);
+  }catch(e){
+    st.className='brevo-status err'; st.innerHTML='⚠️ Erreur pendant l\'import : '+escH(e.message)+' — les fiches déjà envoyées sont conservées, relance l\'import pour compléter (les doublons sont ignorés).';
+    btn.disabled=false;
+  }
 }
 
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();if(cid)savePatient();}});
