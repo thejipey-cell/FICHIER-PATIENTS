@@ -435,7 +435,7 @@ const firebaseConfig = {
     </div>
     <div class="sb-tools">
       <button class="sb-tool" onclick="document.getElementById('pages-file').click()">📄 Importer des fiches Pages</button>
-      <input type="file" id="pages-file" accept=".pages" multiple style="display:none" onchange="readPagesFiles(this)">
+      <input type="file" id="pages-file" accept=".pages,.json,application/json" multiple style="display:none" onchange="readPagesFiles(this)">
     </div>
   </div>
 </div>
@@ -2235,6 +2235,16 @@ async function readPagesFiles(input){
   closePatientsDropdown(); pagesParsed=[];
   const st=document.getElementById('pages-summary'), go=document.getElementById('pages-go');
   st.className='brevo-status'; go.disabled=true; document.getElementById('modal-pages').style.display='flex';
+  const jsonFile=list.find(f=>/\.json$/i.test(f.name));
+  if(jsonFile){
+    st.innerHTML='⏳ Lecture du fichier d\'import…';
+    try{
+      const data=JSON.parse(await jsonFile.text());
+      if(!data||!Array.isArray(data.fiches)) throw new Error('format inattendu');
+      pagesParsed=data.fiches.map(r=>r.ok?{...r,sessions:(r.sessions||[]).map(x=>({...x,dateISO:x.dateISO||frDateToISO(x.date)}))}:r);
+    }catch(e){ st.className='brevo-status err'; st.innerHTML='⚠️ Fichier d\'import illisible : '+escH(e.message); return; }
+    list.length=0;
+  }
   for(let i=0;i<list.length;i++){
     st.innerHTML=`⏳ Lecture des fiches… ${i+1} / ${list.length}<br><small>${escH(list[i].name)}</small>`;
     await new Promise(r=>setTimeout(r,0));
@@ -2243,7 +2253,7 @@ async function readPagesFiles(input){
   }
   const {created,updated,newSess}=pagesPlan(); const bad=pagesParsed.filter(r=>!r.ok);
   st.innerHTML=`<strong>${pagesParsed.length}</strong> fiches lues → <strong>${updated}</strong> patients complétés, <strong>${created}</strong> créés, <strong>${newSess}</strong> séances ajoutées.`+
-    (bad.length?`<br>⚠️ ${bad.length} fichier(s) illisible(s) : ${bad.slice(0,5).map(b=>escH(b.file)).join(', ')}${bad.length>5?'…':''}`:'');
+    (bad.length?`<br>⚠️ ${bad.length} fichier(s) illisible(s) : ${bad.slice(0,5).map(b=>escH(b.file)).join(', ')}${bad.length>5?'…':''}<br><small>Cause : ${escH([...new Set(bad.map(b=>b.err))].slice(0,3).join(' / '))}</small>`:'');
   go.disabled=!(created||updated);
 }
 async function runPagesImport(){
