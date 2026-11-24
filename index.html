@@ -2155,24 +2155,42 @@ function* iwaObjects(bytes){
 }
 const pagesTD=new TextDecoder();
 function pagesTable(files){
-  // listes de chaînes : clé → texte
-  const lists=[];
+  // Listes de chaînes simples (type 1), textes enrichis (type 8 → payload → storage)
+  const strings={}, rich={}, payload={}, storage={};
+  const ref=v=>{ try{ return (pbFields(v).find(x=>x[0]===1)||[])[2]; }catch(e){ return undefined; } };
   for(const [name,data] of Object.entries(files)){ if(!/DataList/.test(name)) continue;
-    for(const [id,typ,pl] of iwaObjects(data)){ const m={};
-      for(const [f,t,v] of pbFields(pl)){ if(f===3&&t===2){ const e=pbFields(v); const key=(e.find(x=>x[0]===1)||[])[2]; const s=e.find(x=>x[0]===3&&x[1]===2); if(s&&key!==undefined) m[key]=pagesTD.decode(s[2]); } }
-      if(Object.keys(m).length) lists.push(m); } }
-  const strings=lists.find(m=>Object.values(m).some(s=>/DATE DE NAISSANCE/i.test(s)))||{};
+    for(const [id,typ,pl] of iwaObjects(data)){
+      let fs; try{ fs=pbFields(pl); }catch(e){ continue; }
+      if(typ===2001){ storage[id]=fs.filter(x=>x[0]===3&&x[1]===2).map(x=>pagesTD.decode(x[2])).join(''); continue; }
+      if(typ===6218){ const r=fs.find(x=>x[0]===1&&x[1]===2); if(r) payload[id]=ref(r[2]); continue; }
+      if(typ!==6005) continue;
+      const lt=(fs.find(x=>x[0]===1&&x[1]===0)||[])[2];
+      for(const [f,t,v] of fs){ if(f!==3||t!==2) continue;
+        let e; try{ e=pbFields(v); }catch(err){ continue; }
+        const key=(e.find(x=>x[0]===1&&x[1]===0)||[])[2]; if(key===undefined) continue;
+        if(lt===1){ const s=e.find(x=>x[0]===3&&x[1]===2); if(s) strings[key]=pagesTD.decode(s[2]); }
+        else if(lt===8){ const r=e.find(x=>x[0]===9&&x[1]===2); if(r) rich[key]=ref(r[2]); }
+      } } }
   const grid={};
   for(const [name,data] of Object.entries(files)){ if(!/Tables\/Tile/.test(name)) continue;
     for(const [id,typ,pl] of iwaObjects(data)){
-      for(const [f,t,v] of pbFields(pl)){ if(f!==5||t!==2) continue;
-        const ri=pbFields(v), g=k=>(ri.find(x=>x[0]===k)||[])[2];
-        const row=g(1)||0, buf=g(6), offs=g(7), wide=g(8)||0; if(!buf||!offs) continue;
+      let fs; try{ fs=pbFields(pl); }catch(e){ continue; }
+      for(const [f,t,v] of fs){ if(f!==5||t!==2) continue;
+        let ri; try{ ri=pbFields(v); }catch(e){ continue; }
+        const g=k=>(ri.find(x=>x[0]===k)||[])[2];
+        const row=g(1)||0, buf=g(6), offs=g(7), wide=g(8)||0; if(!buf||!offs||typeof buf==='number') continue;
         const dvb=new DataView(buf.buffer,buf.byteOffset,buf.byteLength), dvo=new DataView(offs.buffer,offs.byteOffset,offs.byteLength);
         for(let col=0;col<offs.length/2;col++){ let o=dvo.getUint16(col*2,true); if(o===0xFFFF) continue; if(wide) o*=4;
+          if(o+12>buf.length) continue;
           const flags=dvb.getUint32(o+8,true); let k=o+12; if(flags&1)k+=16; if(flags&2)k+=8; if(flags&4)k+=8;
-          if(flags&8){ const sid=dvb.getInt32(k,true); if(strings[sid]!==undefined) grid[row+','+col]=strings[sid].trim(); } } } } }
-  const below=label=>{ for(const [rc,s] of Object.entries(grid)){ if(s.toUpperCase().replace(/\s+/g,' ')===label){ const [r,c]=rc.split(',').map(Number); return (grid[(r+1)+','+c]||'').trim(); } } return ''; };
+          let txt;
+          if(flags&8){ if(k+4<=buf.length){ const sid=dvb.getInt32(k,true); if(strings[sid]!==undefined) txt=strings[sid]; } k+=4; }
+          if(flags&0x10&&k+4<=buf.length){ const rid=dvb.getInt32(k,true); const st=storage[payload[rich[rid]]]; if(st!==undefined) txt=st; }
+          if(txt!==undefined) grid[row+','+col]=String(txt).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffc]/g,'').trim();
+        } } } }
+  const norm=x=>String(x||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z]/g,'');
+  const below=(...labels)=>{ const want=labels.map(norm);
+    for(const [rc,s] of Object.entries(grid)){ if(want.includes(norm(s))){ const [r,c]=rc.split(',').map(Number); return (grid[(r+1)+','+c]||'').trim(); } } return ''; };
   return below;
 }
 function pagesSessions(files){
@@ -2182,7 +2200,7 @@ function pagesSessions(files){
       seq.push(pbFields(pl).filter(x=>x[0]===3&&x[1]===2).map(x=>pagesTD.decode(x[2])).join('')); } }
   const clean=s=>{ s=String(s||'').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f￼]/g,'').trim(); return /^(TEXTE|Date)$/i.test(s)?'':s; };
   const out=[];
-  seq.forEach((t,i)=>{ if(/^\s*Séance du/i.test(t)){ const motif=clean(seq[i+1]), tech=clean(seq[i+2]), date=clean(seq[i+3]); if(motif||tech||date) out.push({date,motif,tech}); } });
+  seq.forEach((t,i)=>{ if(/^\s*Séance du/i.test(t)){ const motif=clean(seq[i+1]), tech=clean(seq[i+2]), date=clean(seq[i+3]); if(motif||tech) out.push({date,motif,tech}); } });
   return out;
 }
 function pagesNameFromFile(fn){
@@ -2194,9 +2212,9 @@ function pagesNameFromFile(fn){
 async function parsePagesFile(file){
   const files=await unzipEntries(await file.arrayBuffer());
   const below=pagesTable(files); const {nom,prenom}=pagesNameFromFile(file.name);
-  const ant=[below('OPÉRATION')&&('Opération : '+below('OPÉRATION')), below('ANTÉCÉDENTS MÉDICAUX'), below('RADIO/IRM')&&('Radio/IRM : '+below('RADIO/IRM'))].filter(Boolean).join('\n');
+  const lab=(l,v)=>v?(l+' : '+v):''; const ant=[lab('Opération',below('OPÉRATION')), below('ANTÉCÉDENTS MÉDICAUX'), lab('Radio/IRM',below('RADIO/IRM')), lab('Tabac/alcool',below('Fume? Alcool?','FUME ALCOOL')), lab('Alimentation',below('ALIMENTATION'))].filter(Boolean).join('\n');
   const sessions=pagesSessions(files).map(s=>({...s,dateISO:frDateToISO(s.date)}));
-  return {file:file.name,nom,prenom,ddn:frDateToISO(below('DATE DE NAISSANCE')),adresse:below('ADRESSE'),tel:frPhone(below('TELÉPHONE')||below('TÉLÉPHONE')),
+  return {file:file.name,nom,prenom,ddn:frDateToISO(below('DATE DE NAISSANCE')),adresse:below('ADRESSE'),tel:frPhone(below('TELÉPHONE','TÉLÉPHONE')),medecin:below('MED G','MÉDECIN','MEDECIN TRAITANT'),
     sport:below('ACTIVITÉ'),profession:below('PROFESSION'),origine:below('RECOMMANDÉ PAR'),ant_perso:ant,traitements:below('TRAITEMENT'),sessions};
 }
 function pagesPlan(){
@@ -2236,7 +2254,7 @@ async function runPagesImport(){
   plan.forEach(({r,target,add})=>{
     let p=target;
     if(!p){ p={id:String(base++),nom:r.nom,prenom:r.prenom,ddn:'',tel:'',age:'',sexe:'',profession:'',email:'',adresse:'',newsletter:false,medecin:'',sport:'',origine:'',ant_perso:'',ant_fam:'',traitements:'',tabac:'',nb_tabac:'',alcool:'',nb_alcool:'',consultations:[]}; pts.push(p); }
-    ['ddn','adresse','tel','sport','profession','origine','ant_perso','traitements'].forEach(k=>fill(p,k,r[k]));
+    ['ddn','adresse','tel','medecin','sport','profession','origine','ant_perso','traitements'].forEach(k=>fill(p,k,r[k]));
     if(p.ddn&&!p.age) p.age=calcAge(p.ddn)||'';
     p.consultations=p.consultations||[];
     add.forEach(s=>{ const c=emptyC(); c.dateISO=s.dateISO||''; c.date=s.dateISO?new Date(s.dateISO).toLocaleDateString('fr-FR'):(s.date||''); c.motif=s.motif; c.techniques=s.tech; p.consultations.push(c); });
