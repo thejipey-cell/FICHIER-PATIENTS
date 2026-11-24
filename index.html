@@ -2235,14 +2235,26 @@ async function readPagesFiles(input){
   closePatientsDropdown(); pagesParsed=[];
   const st=document.getElementById('pages-summary'), go=document.getElementById('pages-go');
   st.className='brevo-status'; go.disabled=true; document.getElementById('modal-pages').style.display='flex';
-  const jsonFile=list.find(f=>/\.json$/i.test(f.name));
-  if(jsonFile){
-    st.innerHTML='⏳ Lecture du fichier d\'import…';
-    try{
-      const data=JSON.parse(await jsonFile.text());
-      if(!data||!Array.isArray(data.fiches)) throw new Error('format inattendu');
-      pagesParsed=data.fiches.map(r=>r.ok?{...r,sessions:(r.sessions||[]).map(x=>({...x,dateISO:x.dateISO||frDateToISO(x.date)}))}:r);
-    }catch(e){ st.className='brevo-status err'; st.innerHTML='⚠️ Fichier d\'import illisible : '+escH(e.message); return; }
+  const jsonFiles=list.filter(f=>/\.json$/i.test(f.name));
+  if(jsonFiles.length){
+    const readTxt=f=>new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=()=>rej(fr.error||new Error('lecture impossible'));fr.readAsText(f,'utf-8');});
+    const failed=[];
+    for(let i=0;i<jsonFiles.length;i++){
+      const f=jsonFiles[i];
+      st.innerHTML=`⏳ Lecture du fichier d'import… ${i+1} / ${jsonFiles.length}<br><small>${escH(f.name)}</small>`;
+      let txt=null;
+      for(let a=0;a<3&&txt===null;a++){
+        try{ txt=await readTxt(f); }catch(e){ try{ txt=new TextDecoder('utf-8').decode(await f.arrayBuffer()); }catch(e2){ await new Promise(r=>setTimeout(r,400)); } }
+      }
+      try{
+        if(txt===null) throw new Error('lecture impossible');
+        const data=JSON.parse(txt);
+        if(!data||!Array.isArray(data.fiches)) throw new Error('format inattendu');
+        data.fiches.forEach(r=>pagesParsed.push(r.ok?{...r,sessions:(r.sessions||[]).map(x=>({...x,dateISO:x.dateISO||frDateToISO(x.date)}))}:r));
+      }catch(e){ failed.push(f.name+' ('+e.message+')'); }
+    }
+    if(failed.length&&!pagesParsed.length){ st.className='brevo-status err'; st.innerHTML='⚠️ Fichier d\'import illisible : '+escH(failed.join(', ')); return; }
+    if(failed.length) pagesParsed.push(...failed.map(n=>({ok:false,file:n,err:'fichier JSON illisible, réessaie-le seul'})));
     list.length=0;
   }
   for(let i=0;i<list.length;i++){
