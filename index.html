@@ -633,8 +633,13 @@ function syncStatus(state){
   else { el.textContent='⚠️ Hors ligne'; el.classList.add('offline'); }
 }
 
+function cacheLocal(){
+  // Copie locale de secours : ignorée si le navigateur n'a plus de place (Safari ≈ 5 Mo)
+  try{ localStorage.setItem('etio_local', JSON.stringify(pts)); }
+  catch(e){ try{ localStorage.removeItem('etio_local'); }catch(_){} }
+}
 function save(){
-  localStorage.setItem('etio_local', JSON.stringify(pts));
+  cacheLocal();
   if(firebaseReady && currentUser && cid){
     const p = getP(cid);
     if(p){
@@ -779,7 +784,7 @@ function listenPatients(uid){
   if(unsubscribePatients) unsubscribePatients();
   unsubscribePatients = db.collection('patients').where('userId','==',uid).onSnapshot(snap=>{
     pts = snap.docs.map(d=>d.data());
-    localStorage.setItem('etio_local', JSON.stringify(pts));
+    cacheLocal();
     renderSidebar(document.getElementById('search-input').value);
     if(cid){ const p=getP(cid); if(p) updateTitle(p); }
     syncStatus('synced');
@@ -1752,7 +1757,7 @@ function deletePatient(){const p=getP(cid);if(!p)return;document.getElementById(
 function confirmDel(){
   const idToDelete = cid;
   pts=pts.filter(p=>p.id!==idToDelete);
-  localStorage.setItem('etio_local', JSON.stringify(pts));
+  cacheLocal();
   if(firebaseReady && currentUser){
     syncStatus('syncing');
     db.collection('patients').doc(idToDelete).delete().then(()=>syncStatus('synced')).catch(()=>syncStatus('offline'));
@@ -2073,7 +2078,7 @@ async function runImport(){
       }
     }
     pts=pts.concat(list.filter(p=>!pts.some(x=>x.id===p.id)));
-    localStorage.setItem('etio_local', JSON.stringify(pts));
+    cacheLocal();
     renderSidebar(document.getElementById('search-input').value);
     st.className='brevo-status ok'; st.innerHTML=`✅ ${list.length} fiches patients créées.`;
     showToast(`📥 ${list.length} patients importés`);
@@ -2245,7 +2250,7 @@ async function runPagesImport(){
         st.innerHTML=`⏳ Enregistrement… ${Math.min(i+200,changed.length)} / ${changed.length}`; await b.commit();
       }
     }
-    localStorage.setItem('etio_local', JSON.stringify(pts)); renderSidebar(document.getElementById('search-input').value);
+    cacheLocal(); renderSidebar(document.getElementById('search-input').value);
     st.className='brevo-status ok'; st.innerHTML=`✅ ${changed.length} fiches patients mises à jour ou créées.`;
     showToast('📄 Fiches Pages importées');
   }catch(e){ st.className='brevo-status err'; st.innerHTML='⚠️ Erreur : '+escH(e.message)+' — relance l\'import, les séances déjà ajoutées ne seront pas dupliquées.'; go.disabled=false; }
