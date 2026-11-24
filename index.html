@@ -2092,6 +2092,7 @@ async function unzipEntries(buf){
   for(let i=u.length-22;i>=Math.max(0,u.length-70000);i--){ if(dv.getUint32(i,true)===0x06054b50){e=i;break;} }
   if(e<0) throw new Error('fichier non reconnu (pas un fichier .pages)');
   const n=dv.getUint16(e+10,true); let p=dv.getUint32(e+16,true); const out={}; const td=new TextDecoder();
+  if(p>=u.length) throw new Error('fichier incomplet (pas encore téléchargé depuis iCloud ?)');
   for(let k=0;k<n;k++){
     const method=dv.getUint16(p+10,true), csize=dv.getUint32(p+20,true), nl=dv.getUint16(p+28,true), xl=dv.getUint16(p+30,true), cl=dv.getUint16(p+32,true), lo=dv.getUint32(p+42,true);
     const name=td.decode(u.subarray(p+46,p+46+nl)); p+=46+nl+xl+cl;
@@ -2104,25 +2105,27 @@ async function unzipEntries(buf){
   return out;
 }
 function snappyRaw(src){
-  let i=0,len=0,sh=0; for(;;){const c=src[i++]; len+=(c&0x7f)*2**sh; if(c<0x80)break; sh+=7;}
+  let i=0,len=0,sh=0; for(;;){ if(i>=src.length||sh>35) throw new Error('données corrompues'); const c=src[i++]; len+=(c&0x7f)*2**sh; if(c<0x80)break; sh+=7;}
+  if(len>200*1024*1024) throw new Error('bloc trop grand');
   const out=new Uint8Array(len); let o=0;
   while(i<src.length){
     const tag=src[i++], t=tag&3;
-    if(t===0){ let l=tag>>2; if(l>=60){const nb=l-59; l=0; for(let k=0;k<nb;k++) l+=src[i++]*2**(8*k);} l+=1; out.set(src.subarray(i,i+l),o); i+=l; o+=l; }
+    if(t===0){ let l=tag>>2; if(l>=60){const nb=l-59; l=0; for(let k=0;k<nb;k++) l+=src[i++]*2**(8*k);} l+=1; if(o+l>len||i+l>src.length) throw new Error('données corrompues'); out.set(src.subarray(i,i+l),o); i+=l; o+=l; }
     else{ let l,off;
       if(t===1){ l=((tag>>2)&7)+4; off=((tag>>5)<<8)|src[i++]; }
       else if(t===2){ l=(tag>>2)+1; off=src[i]|(src[i+1]<<8); i+=2; }
       else { l=(tag>>2)+1; off=(src[i]|(src[i+1]<<8)|(src[i+2]<<16))+src[i+3]*16777216; i+=4; }
+      if(!off||off>o||o+l>len) throw new Error('données corrompues');
       for(let k=0;k<l;k++){ out[o]=out[o-off]; o++; } }
   }
   return out;
 }
 function iwaDecode(d){
   const parts=[]; let i=0, total=0;
-  while(i<d.length){ const n=d[i+1]|(d[i+2]<<8)|(d[i+3]<<16); const p=snappyRaw(d.subarray(i+4,i+4+n)); parts.push(p); total+=p.length; i+=4+n; }
+  while(i<d.length){ if(i+4>d.length) break; const n=d[i+1]|(d[i+2]<<8)|(d[i+3]<<16); if(!n||i+4+n>d.length) throw new Error('données corrompues'); const p=snappyRaw(d.subarray(i+4,i+4+n)); parts.push(p); total+=p.length; i+=4+n; }
   const out=new Uint8Array(total); let o=0; parts.forEach(p=>{out.set(p,o);o+=p.length;}); return out;
 }
-function pbVarint(b,i){ let r=0,s=0; for(;;){const c=b[i++]; r+=(c&0x7f)*2**s; if(c<0x80)return [r,i]; s+=7;} }
+function pbVarint(b,i){ let r=0,s=0; for(;;){ if(i>=b.length||s>63) throw new Error('données corrompues'); const c=b[i++]; r+=(c&0x7f)*2**s; if(c<0x80)return [r,i]; s+=7;} }
 function pbFields(b){
   const out=[]; let i=0;
   while(i<b.length){
@@ -2137,7 +2140,7 @@ function pbFields(b){
 function* iwaObjects(bytes){
   const b=iwaDecode(bytes); let i=0;
   while(i<b.length){
-    let n; [n,i]=pbVarint(b,i); const info=pbFields(b.subarray(i,i+n)); i+=n;
+    let n; [n,i]=pbVarint(b,i); if(i+n>b.length) throw new Error('données corrompues'); const info=pbFields(b.subarray(i,i+n)); i+=n;
     const id=(info.find(x=>x[0]===1)||[])[2];
     for(const m of info.filter(x=>x[0]===2)){
       const mf=pbFields(m[2]); const typ=(mf.find(x=>x[0]===1)||[])[2], ln=(mf.find(x=>x[0]===3)||[0,0,0])[2];
@@ -2210,10 +2213,10 @@ async function readPagesFiles(input){
   const st=document.getElementById('pages-summary'), go=document.getElementById('pages-go');
   st.className='brevo-status'; go.disabled=true; document.getElementById('modal-pages').style.display='flex';
   for(let i=0;i<list.length;i++){
-    st.innerHTML=`⏳ Lecture des fiches… ${i+1} / ${list.length}`;
-    try{ pagesParsed.push({ok:true,...await parsePagesFile(list[i])}); }
-    catch(e){ pagesParsed.push({ok:false,file:list[i].name,err:e.message}); }
-    if(i%20===19) await new Promise(r=>setTimeout(r,0));
+    st.innerHTML=`⏳ Lecture des fiches… ${i+1} / ${list.length}<br><small>${escH(list[i].name)}</small>`;
+    await new Promise(r=>setTimeout(r,0));
+    try{ if(list[i].size>150*1024*1024) throw new Error('fichier trop lourd'); pagesParsed.push({ok:true,...await parsePagesFile(list[i])}); }
+    catch(e){ pagesParsed.push({ok:false,file:list[i].name,err:(e&&e.message)||'erreur'}); }
   }
   const {created,updated,newSess}=pagesPlan(); const bad=pagesParsed.filter(r=>!r.ok);
   st.innerHTML=`<strong>${pagesParsed.length}</strong> fiches lues → <strong>${updated}</strong> patients complétés, <strong>${created}</strong> créés, <strong>${newSess}</strong> séances ajoutées.`+
