@@ -620,7 +620,7 @@ const firebaseConfig = {
 
 <script>
 /* ══ DONNÉES LOCALES ══ */
-let pts = JSON.parse(localStorage.getItem('etio_local')||'[]');
+let pts = []; try{ pts = JSON.parse(localStorage.getItem('etio_local')||'[]'); }catch(e){ try{ localStorage.removeItem('etio_local'); }catch(_){} }
 let cid = null, cidx = 0;
 let firebaseReady = false, auth = null, db = null, currentUser = null, unsubscribePatients = null;
 
@@ -633,10 +633,17 @@ function syncStatus(state){
   else { el.textContent='⚠️ Hors ligne'; el.classList.add('offline'); }
 }
 
+let cacheTimer=null;
 function cacheLocal(){
-  // Copie locale de secours : ignorée si le navigateur n'a plus de place (Safari ≈ 5 Mo)
-  try{ localStorage.setItem('etio_local', JSON.stringify(pts)); }
-  catch(e){ try{ localStorage.removeItem('etio_local'); }catch(_){} }
+  // Copie locale de secours, différée et limitée : au-delà de 800 dossiers on s'appuie sur le cloud
+  // (évite de saturer la mémoire de Safari, surtout sur iPhone)
+  clearTimeout(cacheTimer);
+  cacheTimer=setTimeout(()=>{
+    try{
+      if(pts.length>800){ localStorage.removeItem('etio_local'); return; }
+      localStorage.setItem('etio_local', JSON.stringify(pts));
+    }catch(e){ try{ localStorage.removeItem('etio_local'); }catch(_){} }
+  },3000);
 }
 function save(){
   cacheLocal();
@@ -785,9 +792,12 @@ function listenPatients(uid){
   unsubscribePatients = db.collection('patients').where('userId','==',uid).onSnapshot(snap=>{
     pts = snap.docs.map(d=>d.data());
     cacheLocal();
-    renderSidebar(document.getElementById('search-input').value);
-    if(cid){ const p=getP(cid); if(p) updateTitle(p); }
-    syncStatus('synced');
+    clearTimeout(window._rsT);
+    window._rsT=setTimeout(()=>{
+      renderSidebar(document.getElementById('search-input').value);
+      if(cid){ const p=getP(cid); if(p) updateTitle(p); }
+      syncStatus('synced');
+    },300);
   }, ()=>{ syncStatus('offline'); });
 }
 
@@ -799,11 +809,12 @@ document.addEventListener('click',e=>{const sb=document.getElementById('sidebar'
 function filterPts(v){renderSidebar(v);}
 function renderSidebar(filter=''){
   const list=document.getElementById('patient-list');
-  const fil=pts.filter(p=>(p.nom+' '+p.prenom).toLowerCase().includes(filter.toLowerCase())).sort((a,b)=>(a.nom+a.prenom).localeCompare(b.nom+b.prenom));
+  const f=(filter||'').toLowerCase();const fil=pts.filter(p=>((p.nom||'')+' '+(p.prenom||'')).toLowerCase().includes(f)).sort((a,b)=>((a.nom||'')+(a.prenom||'')).localeCompare((b.nom||'')+(b.prenom||'')));
   if(!fil.length){list.innerHTML=`<div class="empty-list">${filter?'Aucun résultat':'Aucun patient'}</div>`;return;}
-  list.innerHTML=fil.map(p=>{const ini=(p.nom[0]||'?')+(p.prenom[0]||'');const last=p.consultations?.length?p.consultations[p.consultations.length-1].date:'—';
+  const MAX=150, more=fil.length-MAX;
+  list.innerHTML=fil.slice(0,MAX).map(p=>{const ini=((p.nom||'')[0]||'?')+((p.prenom||'')[0]||'');const last=p.consultations?.length?p.consultations[p.consultations.length-1].date:'—';
     return `<div class="pt-item${p.id===cid?' active':''}" onclick="selectPt('${p.id}')"><div class="pt-avatar">${ini.toUpperCase()}</div><div class="pt-info"><div class="pt-name">${p.nom} ${p.prenom}</div><div class="pt-meta">📅 ${last}</div></div></div>`;
-  }).join('');
+  }).join('')+(more>0?`<div class="empty-list">+ ${more} autres patients (${fil.length} au total) — tape un nom dans la recherche</div>`:'');
 }
 function toggleMore(){document.getElementById('more-dropdown').classList.toggle('open');}
 document.addEventListener('click',e=>{const mm=document.getElementById('more-menu');if(mm&&!mm.contains(e.target))document.getElementById('more-dropdown').classList.remove('open');});
