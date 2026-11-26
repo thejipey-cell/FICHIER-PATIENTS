@@ -262,6 +262,48 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 .mrb.non{}.mrb.non.active{background:var(--teal-pale);color:var(--teal);border-color:var(--teal);font-weight:700;}
 .nb-title{font-family:'Lora',serif;font-size:13px;font-weight:600;color:#fff;background:var(--navy);padding:7px 12px;border-radius:7px;margin:14px 0 8px;display:flex;align-items:center;gap:7px;}
 .nb-title.teal{background:var(--teal);}
+/* Bilan neuro : anomalies, synthèse, « Tout normal », affichage mobile */
+.frb{padding:7px 2px;font-size:11px;}
+.frb.ko.active{background:var(--red-pale);color:var(--red);border-color:var(--red);font-weight:700;}
+.frb-legend{font-size:10.5px;color:var(--light);margin:-2px 0 4px;}
+.nb-all{margin-left:auto;background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:14px;padding:3px 10px;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.nb-all:hover{background:rgba(255,255,255,.28);}
+.asym-tag{display:none;margin-left:6px;font-style:normal;font-size:9.5px;font-weight:700;color:#e65100;background:#fff3e0;border:1px solid #fb8c00;border-radius:8px;padding:0 5px;white-space:nowrap;}
+tr.asym .asym-tag{display:inline-block;}
+.ftbl tr.anom td,.rtbl tr.anom td,.mtbl tr.anom td{background:#fdf3f2;}
+.ftbl tr.anom td.td-lv{background:#f9d4cf;color:var(--red);}
+.rtbl tr.anom td.td-rf,.mtbl tr.anom td.td-nv{color:var(--red);}
+.ftbl tr.asym td:first-child,.rtbl tr.asym td:first-child{box-shadow:inset 3px 0 0 #fb8c00;}
+.cen-item.anom,.sensi-item.anom{background:#fdf3f2;border-color:#f5c6c2;}
+.td-rlv{text-align:center;font-size:11px;color:var(--light);}
+.neuro-syn{border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:4px;border:1px solid var(--border);}
+.neuro-syn.empty{background:var(--bg);color:var(--light);font-size:12px;}
+.neuro-syn.ok{background:var(--teal-pale);color:var(--teal);border-color:#a8d8cf;font-weight:600;}
+.neuro-syn.ko{background:#fdf3f2;color:var(--text);border-color:#f5c6c2;}
+.neuro-syn .ns-head{color:var(--red);font-weight:600;margin-bottom:4px;}
+.neuro-syn ul{margin:0;padding-left:18px;}.neuro-syn li{margin:2px 0;}
+.neuro-badge{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;border-radius:10px;padding:1px 8px;margin-left:8px;}
+.neuro-badge.ko{background:var(--red-pale);color:var(--red);}.neuro-badge.ok{background:var(--teal-pale);color:var(--teal);}
+@media(max-width:640px){
+  .ftbl,.rtbl,.mtbl{min-width:0;}
+  .ftbl thead,.rtbl thead,.mtbl thead{display:none;}
+  .ftbl,.ftbl tbody,.ftbl tr,.ftbl td,.rtbl,.rtbl tbody,.rtbl tr,.rtbl td,.mtbl,.mtbl tbody,.mtbl tr,.mtbl td{display:block;width:100%;}
+  .ftbl tr,.rtbl tr,.mtbl tr{border:1px solid var(--border);border-radius:8px;margin-bottom:8px;padding:6px 9px 9px;background:var(--white);}
+  .ftbl td,.rtbl td,.mtbl td{border:none;padding:2px 0;background:none!important;}
+  .ftbl td.td-lv,.ftbl td.td-fn,.rtbl td.td-rf,.rtbl td.td-rlv{display:inline-block;width:auto;margin-right:8px;}
+  .ftbl td.td-lv{font-size:15px;}
+  td[data-side]::before{content:attr(data-side);display:block;font-size:10px;font-weight:700;color:var(--light);text-transform:uppercase;letter-spacing:.4px;margin:6px 0 3px;}
+  .ftbl tr.anom,.rtbl tr.anom,.mtbl tr.anom{background:#fdf3f2;border-color:#f5c6c2;}
+  .ftbl tr.asym,.rtbl tr.asym{border-left:3px solid #fb8c00;}
+  .ftbl tr.asym td:first-child,.rtbl tr.asym td:first-child{box-shadow:none;}
+  .mtbl tr.tbl-sub{border:none;padding:4px 0;background:none;}
+  .rtbl td.td-rnote{margin-top:6px;}
+  .frb,.hhb,.mrb{padding:10px 2px;font-size:12px;}
+  .mrb{white-space:normal;}
+  .sensi-grid{grid-template-columns:1fr;}
+  .nb-title{flex-wrap:wrap;}
+}
+
 .nb-sub{font-size:11px;font-weight:700;color:var(--light);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 5px;}
 .sensi-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;}
 .sensi-item{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;}
@@ -917,7 +959,7 @@ function renderConsults(){
   const p=getP(cid);const tabs=document.getElementById('ctabs'),ccontent=document.getElementById('ccontent');
   if(!p?.consultations?.length){tabs.innerHTML='';ccontent.innerHTML=`<div style="text-align:center;padding:32px;background:var(--white);border-radius:var(--r);border:1px solid var(--border);"><div style="font-size:36px;margin-bottom:10px;">📋</div><div style="color:var(--light);font-size:14px;">Aucune consultation</div><button class="btn-add" style="margin-top:12px;" onclick="addConsult()">＋ Créer la première</button></div>`;return;}
   tabs.innerHTML=p.consultations.map((c,i)=>`<button class="ctab${i===cidx?' active':''}" onclick="switchC(${i})">Séance ${i+1} — ${c.date}</button>`).join('');
-  ccontent.innerHTML=buildForm(p.consultations[cidx],cidx);bindPills();growAll();
+  ccontent.innerHTML=buildForm(p.consultations[cidx],cidx);bindPills();growAll();neuroRefresh(cidx);
 }
 function switchC(i){if(i===cidx)return;savePatient(true);cidx=i;renderConsults();}
 function autoGrow(el){if(!el||!el.offsetParent)return;el.style.height='auto';el.style.height=(el.scrollHeight+2)+'px';}
@@ -970,10 +1012,64 @@ function setYN(btn){const was=btn.classList.contains('active');btn.closest('.yng
 function getYN(id){const g=document.querySelector(`.yng[data-id="${id}"]`);if(!g)return'';const a=g.querySelector('.yn-btn.active');return a?a.classList.contains('yes')?'oui':a.classList.contains('no')?'non':'nsp':'';}
 const SUP_F={C4:'Élévation épaule',C5:'ABD / Biceps',C6:'Flexion coude + poignet',C7:'Extension coude + rot. poignet',C8:'Extension poing/poignet',T1:'Écartement V'};
 const INF_F={L2:'Flexion hanche',L3:'Extension genou',L4:'Releveur pied',L5:'Extension orteils',S1:'Élévateur hallux',S2:'Ischios'};
-function forceSupR(id,val){return `<select class="force-sel" id="${id}"><option value="">—</option><option value="ok"${val==='ok'?' selected':''}>ok</option><option value="perte en flexion cervicale"${val==='perte en flexion cervicale'?' selected':''}>perte en flexion cervicale</option><option value="perte en extension cervicale"${val==='perte en extension cervicale'?' selected':''}>perte en extension cervicale</option></select>`;}
-function forceInfR(id,val){return `<select class="force-sel" id="${id}"><option value="">—</option><option value="ok"${val==='ok'?' selected':''}>ok</option><option value="perte en extension lombaire"${val==='perte en extension lombaire'?' selected':''}>perte en extension lombaire</option><option value="perte en flexion lombaire"${val==='perte en flexion lombaire'?' selected':''}>perte en flexion lombaire</option><option value="perte en flexion cervicale"${val==='perte en flexion cervicale'?' selected':''}>perte en flexion cervicale</option><option value="perte en extension cervicale"${val==='perte en extension cervicale'?' selected':''}>perte en extension cervicale</option></select>`;}
 function setFrb(btn,val){const was=btn.classList.contains('active');btn.closest('.frg').querySelectorAll('.frb').forEach(b=>b.classList.remove('active'));if(!was)btn.classList.add('active');}
-function getFrb(id){const g=document.getElementById(id);if(!g)return'';return g.value||'';}
+function getFrb(id){const g=document.getElementById(id);if(!g)return'';const a=g.querySelector('.frb.active');return a?a.dataset.v:'';}
+/* ══ BILAN NEURO : boutons de force, anomalies, synthèse, « Tout normal » ══ */
+const RFX=[['patellaire','Patellaire','L3-L4'],['calcaneen','Calcanéen','S1-S2'],['deltoide','Deltoïde','C5'],['bicipital','Bicipital','C5-C6'],['brachioradial','Brachioradial','C6'],['tricipital','Tricipital','C7']];
+const CEN_T=[['hoffman','Hoffman'],['trommer','Trommer'],['babinski','Babinski'],['supinateur','Supinateur inversé']];
+const MECA_SUP=[['radial','Nerf radial'],['median','Nerf médian'],['ulnaire','Nerf ulnaire']];
+const MECA_INF=[['lasegue','Lasègue'],['slump','Slump'],['femoral','Nerf fémoral']];
+const FS_OPTS=[['ok','OK','ok'],['perte en flexion cervicale','↓ Flex C','ko'],['perte en extension cervicale','↓ Ext C','ko']];
+const FI_OPTS=[['ok','OK','ok'],['perte en flexion lombaire','↓ Flex L','ko'],['perte en extension lombaire','↓ Ext L','ko'],['perte en flexion cervicale','↓ Flex C','ko'],['perte en extension cervicale','↓ Ext C','ko']];
+const LV_ORDER=['C4','C5','C6','C7','C8','T1','L2','L3','L4','L5','S1','S2'];
+function frbGroup(id,val,opts){
+  let html=opts.map(([v,l,c])=>`<button class="frb ${c}${val===v?' active':''}" data-v="${v}" title="${v}" onclick="setFrb(this)">${l}</button>`).join('');
+  if(val&&!opts.some(o=>o[0]===val)) html+=`<button class="frb ko active" data-v="${escH(val)}" onclick="setFrb(this)">${escH(val)}</button>`;
+  return `<div class="frg" id="${id}">${html}</div>`;
+}
+function forceSupR(id,val){return frbGroup(id,val,FS_OPTS);}
+function forceInfR(id,val){return frbGroup(id,val,FI_OPTS);}
+function allBtn(idx){return `<button type="button" class="nb-all" title="Met en normal toutes les cases encore vides de ce tableau" onclick="fillNormal(this,${idx})">✓ Tout normal</button>`;}
+function fillNormal(btn,idx){
+  const sec=btn.closest('.nb-sec');if(!sec)return;
+  const fill=(grp,act,norm)=>sec.querySelectorAll(grp).forEach(g=>{if(!g.querySelector(act)){const n=g.querySelector(norm);if(n)n.classList.add('active');}});
+  fill('.frg','.frb.active','.frb.ok');
+  fill('.hnh','.hhb.active','.hhb.norm');
+  fill('.ap-grp','.ap-btn.active','.ap-btn.absent');
+  fill('.nna','.nna-btn.active','.nna-btn.normal');
+  fill('.mrg','.mrb[data-g="r"].active','.mrb[data-v="non"]');
+  neuroRefresh(idx);
+}
+function neuroRefresh(idx){
+  const syn=document.getElementById('neuro-syn-'+idx);if(!syn)return;
+  const out=[],lv=new Set();let filled=0;
+  const mark=(el,anom,asym)=>{if(!el)return;el.classList.toggle('anom',!!anom);el.classList.toggle('asym',!!asym);};
+  [['sensi-grosse','grosse fibre'],['sensi-petite','petite fibre']].forEach(([id,l])=>{
+    const v=getNNA(id);if(v)filled++;const n=(getNNANote(id)||'').trim();
+    mark(document.querySelector(`.nna[data-id="${id}"]`)?.closest('.sensi-item'),v==='altéré');
+    if(v==='altéré')out.push(`Sensibilité ${l} altérée${n?' — '+escH(n):''}`);
+  });
+  [['fs',SUP_F],['fi',INF_F]].forEach(([pre,map])=>Object.keys(map).forEach(k=>{
+    const g=getFrb(`${pre}g-${k}`),d=getFrb(`${pre}d-${k}`);if(g)filled++;if(d)filled++;
+    const ab=s=>s&&s!=='ok';mark(document.getElementById(`nr-${pre}-${k}`),ab(g)||ab(d),g&&d&&g!==d);
+    [['G',g],['D',d]].forEach(([s,v])=>{if(ab(v)){out.push(`Force ${k} ${s} : ${escH(v)}`);lv.add(k);}});
+  }));
+  RFX.forEach(([k,l,niv])=>{
+    const g=getHNH(`rg-${k}`),d=getHNH(`rd-${k}`);if(g)filled++;if(d)filled++;
+    const ab=s=>s==='hypo'||s==='hyper';mark(document.getElementById(`nr-rx-${k}`),ab(g)||ab(d),g&&d&&g!==d);
+    [['G',g],['D',d]].forEach(([s,v])=>{if(ab(v)){out.push(`Réflexe ${l.toLowerCase()} ${s} : ${v} (${niv})`);niv.split('-').forEach(x=>lv.add(x));}});
+  });
+  CEN_T.forEach(([k,l])=>{const v=getAP(`cen-${k}`);if(v)filled++;mark(document.getElementById(`nr-cen-${k}`),v==='présent');if(v==='présent')out.push(`${l} présent`);});
+  [...MECA_SUP,...MECA_INF].forEach(([k,l])=>{const v=getMrb(`mc-${k}`);if(v)filled++;const ab=/^Reproduit/.test(v);mark(document.getElementById(`nr-mc-${k}`),ab);if(ab)out.push(`${l} : ${v.toLowerCase()}`);});
+  const levels=[...lv].sort((a,b)=>LV_ORDER.indexOf(a)-LV_ORDER.indexOf(b));
+  const badge=document.getElementById('neuro-badge-'+idx);
+  if(badge){badge.textContent=out.length?`${out.length} anomalie${out.length>1?'s':''}`:filled?'normal':'';badge.className='neuro-badge'+(out.length?' ko':filled?' ok':'');}
+  if(!filled){syn.className='neuro-syn empty';syn.innerHTML='Synthèse : remplis le bilan, les anomalies s\'afficheront ici.';return;}
+  if(!out.length){syn.className='neuro-syn ok';syn.innerHTML='✓ Aucune anomalie relevée sur les éléments testés';return;}
+  syn.className='neuro-syn ko';
+  syn.innerHTML=`<div class="ns-head">⚠️ ${out.length} anomalie${out.length>1?'s':''} relevée${out.length>1?'s':''}${levels.length?` · Niveaux concernés : <strong>${levels.join(', ')}</strong>`:''}</div><ul>${out.map(x=>`<li>${x}</li>`).join('')}</ul>`;
+}
+
 function rotR(id,val){return `<div class="hnh" id="${id}"><button class="hhb hypo${val==='hypo'?' active':''}" onclick="setHNH(this)">Hypo</button><button class="hhb norm${val==='norm'?' active':''}" onclick="setHNH(this)">Norm</button><button class="hhb hyper${val==='hyper'?' active':''}" onclick="setHNH(this)">Hyper</button></div>`;}
 function setHNH(btn){const was=btn.classList.contains('active');btn.closest('.hnh').querySelectorAll('.hhb').forEach(b=>b.classList.remove('active'));if(!was)btn.classList.add('active');}
 function getHNH(id){const g=document.getElementById(id);if(!g)return'';const a=g.querySelector('.hhb.active');return a?a.classList.contains('hypo')?'hypo':a.classList.contains('norm')?'norm':'hyper':'';}
@@ -1071,35 +1167,49 @@ function buildForm(c,idx){
     </div>
   </div>
 
-  <div class="card collapsed" id="c-neuro-${idx}"><div class="card-header" onclick="toggleCard('c-neuro-${idx}')"><div class="card-icon ci-purple">🧠</div><div class="card-title">Bilan neurologique</div><div class="card-toggle">▾</div></div>
-    <div class="card-body">
-      <div class="nb-title teal">Sensibilité</div>
+  <div class="card collapsed" id="c-neuro-${idx}"><div class="card-header" onclick="toggleCard('c-neuro-${idx}')"><div class="card-icon ci-purple">🧠</div><div class="card-title">Bilan neurologique<span class="neuro-badge" id="neuro-badge-${idx}"></span></div><div class="card-toggle">▾</div></div>
+    <div class="card-body" onclick="neuroRefresh(${idx})" oninput="neuroRefresh(${idx})">
+      <div class="neuro-syn" id="neuro-syn-${idx}"></div>
+      <div class="nb-sec">
+      <div class="nb-title teal">Sensibilité ${allBtn(idx)}</div>
       <div class="sensi-grid">${nnaEl('sensi-grosse',c.sensi_grosse||'',c.sensi_grosse_note||'','Grosse fibre')}${nnaEl('sensi-petite',c.sensi_petite||'',c.sensi_petite_note||'','Petite fibre')}</div>
-      <div class="nb-title">💪 Force — Membre supérieur</div>
-      <div class="tbl-wrap"><table class="ftbl"><thead><tr><th class="th-lv" rowspan="2">Niv.</th><th class="th-fn" rowspan="2">Fonction</th><th class="th-sd" colspan="2">Gauche</th><th class="th-sd" colspan="2">Droit</th></tr><tr><th colspan="2" style="background:#1d6558;font-size:9px;">OK · P.Flex.C · P.Ext.C</th><th colspan="2" style="background:#1d6558;font-size:9px;">OK · P.Flex.C · P.Ext.C</th></tr></thead><tbody>
-        ${Object.entries(SUP_F).map(([lv,fn])=>`<tr><td class="td-lv">${lv}</td><td class="td-fn">${fn}</td><td colspan="2">${forceSupR(`fsg-${lv}`,(fs[lv]||{}).g||'')}</td><td colspan="2">${forceSupR(`fsd-${lv}`,(fs[lv]||{}).d||'')}</td></tr>`).join('')}
+      </div>
+      <div class="nb-sec">
+      <div class="nb-title">💪 Force — Membre supérieur ${allBtn(idx)}</div>
+      <div class="tbl-wrap"><table class="ftbl"><thead><tr><th class="th-lv">Niv.</th><th class="th-fn">Fonction</th><th class="th-sd">Gauche</th><th class="th-sd">Droit</th></tr></thead><tbody>
+        ${Object.entries(SUP_F).map(([lv,fn])=>`<tr id="nr-fs-${lv}"><td class="td-lv">${lv}</td><td class="td-fn">${fn}<span class="asym-tag">≠ G/D</span></td><td data-side="Gauche">${forceSupR(`fsg-${lv}`,(fs[lv]||{}).g||'')}</td><td data-side="Droit">${forceSupR(`fsd-${lv}`,(fs[lv]||{}).d||'')}</td></tr>`).join('')}
       </tbody></table></div>
       <input class="note-inp" id="fn-sup-note" placeholder="Notes membre sup…" value="${c.force_note_sup||''}">
-      <div class="nb-title" style="margin-top:16px;">🦵 Force — Membre inférieur</div>
-      <div class="tbl-wrap"><table class="ftbl"><thead><tr><th class="th-lv" rowspan="2">Niv.</th><th class="th-fn" rowspan="2">Fonction</th><th class="th-sd" colspan="2">Gauche</th><th class="th-sd" colspan="2">Droit</th></tr><tr><th colspan="2" style="background:#1d6558;font-size:9px;">OK · P.Ext.L · P.Flex.L · P.Flex.C · P.Ext.C</th><th colspan="2" style="background:#1d6558;font-size:9px;">OK · P.Ext.L · P.Flex.L · P.Flex.C · P.Ext.C</th></tr></thead><tbody>
-        ${Object.entries(INF_F).map(([lv,fn])=>`<tr><td class="td-lv">${lv}</td><td class="td-fn">${fn}</td><td colspan="2">${forceInfR(`fig-${lv}`,(fi[lv]||{}).g||'')}</td><td colspan="2">${forceInfR(`fid-${lv}`,(fi[lv]||{}).d||'')}</td></tr>`).join('')}
+      </div>
+      <div class="nb-sec">
+      <div class="nb-title" style="margin-top:16px;">🦵 Force — Membre inférieur ${allBtn(idx)}</div>
+      <div class="tbl-wrap"><table class="ftbl"><thead><tr><th class="th-lv">Niv.</th><th class="th-fn">Fonction</th><th class="th-sd">Gauche</th><th class="th-sd">Droit</th></tr></thead><tbody>
+        ${Object.entries(INF_F).map(([lv,fn])=>`<tr id="nr-fi-${lv}"><td class="td-lv">${lv}</td><td class="td-fn">${fn}<span class="asym-tag">≠ G/D</span></td><td data-side="Gauche">${forceInfR(`fig-${lv}`,(fi[lv]||{}).g||'')}</td><td data-side="Droit">${forceInfR(`fid-${lv}`,(fi[lv]||{}).d||'')}</td></tr>`).join('')}
       </tbody></table></div>
+      <div class="frb-legend">↓ = perte · Flex/Ext = en flexion / extension · C = cervicale · L = lombaire</div>
       <input class="note-inp" id="fn-inf-note" placeholder="Notes membre inf…" value="${c.force_note_inf||''}">
-      <div class="nb-title" style="margin-top:16px;">⚡ Réflexes ostéo-tendineux</div>
-      <div class="tbl-wrap"><table class="rtbl"><thead><tr><th class="th-rf" style="width:140px">Réflexe</th><th style="background:#eaeef5;color:var(--navy);width:46px;font-size:9px;">Niveau</th><th class="th-sd" colspan="3">Gauche</th><th class="th-sd" colspan="3">Droit</th><th style="background:#eaeef5;color:var(--navy);min-width:80px;">Notes</th></tr></thead><tbody>
-        ${[['patellaire','Patellaire','L3-L4'],['calcaneen','Calcanéen','S1-S2'],['deltoide','Deltoïde','C5'],['bicipital','Bicipital','C5-C6'],['brachioradial','Brachioradial','C6'],['tricipital','Tricipital','C7']].map(([k,l,lv])=>`<tr><td class="td-rf">${l}</td><td style="text-align:center;font-size:11px;color:var(--light);">${lv}</td><td colspan="3">${rotR(`rg-${k}`,(rot[k]||{}).g||'')}</td><td colspan="3">${rotR(`rd-${k}`,(rot[k]||{}).d||'')}</td><td><input class="note-inp" id="rn-${k}" placeholder="…" style="margin:0;" value="${(rot[k]||{}).note||''}"></td></tr>`).join('')}
+      </div>
+      <div class="nb-sec">
+      <div class="nb-title" style="margin-top:16px;">⚡ Réflexes ostéo-tendineux ${allBtn(idx)}</div>
+      <div class="tbl-wrap"><table class="rtbl"><thead><tr><th class="th-rf" style="width:140px">Réflexe</th><th style="background:#eaeef5;color:var(--navy);width:46px;font-size:9px;">Niveau</th><th class="th-sd">Gauche</th><th class="th-sd">Droit</th><th style="background:#eaeef5;color:var(--navy);min-width:80px;">Notes</th></tr></thead><tbody>
+        ${RFX.map(([k,l,lv])=>`<tr id="nr-rx-${k}"><td class="td-rf">${l}<span class="asym-tag">≠ G/D</span></td><td class="td-rlv">${lv}</td><td data-side="Gauche">${rotR(`rg-${k}`,(rot[k]||{}).g||'')}</td><td data-side="Droit">${rotR(`rd-${k}`,(rot[k]||{}).d||'')}</td><td class="td-rnote"><input class="note-inp" id="rn-${k}" placeholder="Note…" style="margin:0;" value="${(rot[k]||{}).note||''}"></td></tr>`).join('')}
       </tbody></table></div>
-      <div class="nb-title teal" style="margin-top:16px;">🔬 Tests centraux</div>
-      <div class="cen-grid">${[['hoffman','Hoffman'],['trommer','Trommer'],['babinski','Babinski'],['supinateur','Supinateur inversé']].map(([k,l])=>`<div class="cen-item"><span class="cen-label">${l}</span>${apR(`cen-${k}`,cen[k]||'')}</div>`).join('')}</div>
+      </div>
+      <div class="nb-sec">
+      <div class="nb-title teal" style="margin-top:16px;">🔬 Tests centraux ${allBtn(idx)}</div>
+      <div class="cen-grid">${CEN_T.map(([k,l])=>`<div class="cen-item" id="nr-cen-${k}"><span class="cen-label">${l}</span>${apR(`cen-${k}`,cen[k]||'')}</div>`).join('')}</div>
       <input class="note-inp" id="cen-note" placeholder="Notes tests centraux…" value="${c.central_note||''}">
-      <div class="nb-title" style="margin-top:16px;">🎯 Mécanosensibilité</div>
+      </div>
+      <div class="nb-sec">
+      <div class="nb-title" style="margin-top:16px;">🎯 Mécanosensibilité ${allBtn(idx)}</div>
       <div class="tbl-wrap"><table class="mtbl"><thead><tr><th class="th-nv">Structure</th><th class="th-op" colspan="2">Reproduction de la douleur</th><th class="th-op">+ en flexion</th><th class="th-op">+ en extension</th></tr></thead><tbody>
         <tr class="tbl-sub"><td colspan="5">Membre supérieur</td></tr>
-        ${[['radial','Nerf radial'],['median','Nerf médian'],['ulnaire','Nerf ulnaire']].map(([k,l])=>`<tr><td class="td-nv">${l}</td><td colspan="4">${mecaR(`mc-${k}`,meca[k]||'')}</td></tr>`).join('')}
+        ${MECA_SUP.map(([k,l])=>`<tr id="nr-mc-${k}"><td class="td-nv">${l}</td><td colspan="4">${mecaR(`mc-${k}`,meca[k]||'')}</td></tr>`).join('')}
         <tr class="tbl-sub"><td colspan="5">Membre inférieur</td></tr>
-        ${[['lasegue','Lasègue'],['slump','Slump'],['femoral','Nerf fémoral']].map(([k,l])=>`<tr><td class="td-nv">${l}</td><td colspan="4">${mecaR(`mc-${k}`,meca[k]||'')}</td></tr>`).join('')}
+        ${MECA_INF.map(([k,l])=>`<tr id="nr-mc-${k}"><td class="td-nv">${l}</td><td colspan="4">${mecaR(`mc-${k}`,meca[k]||'')}</td></tr>`).join('')}
       </tbody></table></div>
       <input class="note-inp" id="mc-note" placeholder="Notes mécanosensibilité…" value="${c.meca_note||''}">
+      </div>
     </div>
   </div>
 
