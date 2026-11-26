@@ -151,7 +151,7 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 .fg:last-child{margin-bottom:0;}
 .fl{font-size:11px;font-weight:600;color:var(--light);text-transform:uppercase;letter-spacing:.6px;}
 .fi,.fs,.ft{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);outline:none;transition:border-color .2s,background .2s;width:100%;min-height:var(--tap);}
-.ft{resize:vertical;min-height:80px;line-height:1.5;}
+.ft{resize:none;min-height:80px;line-height:1.5;overflow:hidden;}
 .fi:focus,.fs:focus,.ft:focus{border-color:var(--teal);background:#fff;}
 .fn{font-size:11px;color:var(--light);margin-top:2px;font-style:italic;}
 .divider{height:1px;background:var(--border);margin:14px 0;}
@@ -488,7 +488,7 @@ const firebaseConfig = {
           <div class="divider"></div>
           <div class="grid3">
             <div class="fg span2"><label class="fl">Antécédents personnels</label><textarea class="ft" id="f-ant-perso" placeholder="Chirurgies, maladies, traumatismes…"></textarea></div>
-            <div class="fg"><label class="fl">Antécédents familiaux</label><textarea class="ft" id="f-ant-fam" placeholder="Pathologies héréditaires…"></textarea></div>
+            <div class="fg"><label class="fl">Compte rendu d'examens</label><textarea class="ft" id="f-cr-examens" placeholder="Radio, IRM, échographie, prise de sang…"></textarea></div>
             <div class="fg span2"><label class="fl">Traitements en cours</label><textarea class="ft" id="f-traitements" placeholder="Médicaments, posologies…" style="min-height:55px;"></textarea></div>
             <div class="fg">
               <label class="fl">Tabagisme</label>
@@ -509,7 +509,7 @@ const firebaseConfig = {
                 <button class="yn-btn nsp" onclick="setYN(this);toggleQty('f-alcool-qty',this)">NSP</button>
               </div>
               <div id="f-alcool-qty" style="display:none;margin-top:8px;">
-                <input class="fi" id="f-nb-alcool" type="number" placeholder="Verres / semaine">
+                <select class="fs" id="f-nb-alcool"><option value="">Fréquence…</option><option>1 / mois</option><option>1 / semaine</option><option>Quotidienne</option></select>
               </div>
             </div>
           </div>
@@ -854,8 +854,9 @@ function selectPt(id){
   setF('f-tel',p.tel||'');setF('f-email',p.email||'');setF('f-medecin',p.medecin||'');
   setF('f-sport',p.sport||'');setF('f-origine',p.origine||'');
   document.getElementById('f-newsletter').checked=!!p.newsletter;
-  setF('f-ant-perso',p.ant_perso||'');setF('f-ant-fam',p.ant_fam||'');setF('f-traitements',p.traitements||'');
-  setF('f-nb-tabac',p.nb_tabac||'');setF('f-nb-alcool',p.nb_alcool||'');
+  if(p.ant_fam&&String(p.ant_fam).trim()){ p.ant_perso=[p.ant_perso,'Antécédents familiaux : '+p.ant_fam].filter(x=>x&&String(x).trim()).join('\n'); p.ant_fam=''; }
+  setF('f-ant-perso',p.ant_perso||'');setF('f-cr-examens',p.cr_examens||'');setF('f-traitements',p.traitements||'');
+  setF('f-nb-tabac',p.nb_tabac||'');setF('f-nb-alcool',['1 / mois','1 / semaine','Quotidienne'].includes(p.nb_alcool)?p.nb_alcool:'');
   setYNGroup('f-tabac',p.tabac||'');setYNGroup('f-alcool',p.alcool||'');
   document.getElementById('f-tabac-qty').style.display = p.tabac==='oui' ? 'block' : 'none';
   document.getElementById('f-alcool-qty').style.display = p.alcool==='oui' ? 'block' : 'none';
@@ -863,6 +864,7 @@ function selectPt(id){
   document.getElementById('f-ddn').onchange=ageUpdater;
   document.getElementById('f-ddn').oninput=ageUpdater;
   renderConsults();
+  growAll();
 }
 function setYNGroup(id,val){
   const g=document.querySelector(`.yng[data-id="${id}"]`);if(!g)return;
@@ -880,7 +882,8 @@ function v(id){const el=document.getElementById(id);return el?el.value:'';}
 function emptyC(){
   const dn4={};for(let i=1;i<=10;i++)dn4['q'+i]='';
   const bi=l=>{const o={};l.forEach(x=>o[x]={g:'',d:''});return o;};
-  return{date:new Date().toLocaleDateString('fr-FR'),dateISO:new Date().toISOString().split('T')[0],
+  const _n=new Date(),_iso=_n.getFullYear()+'-'+String(_n.getMonth()+1).padStart(2,'0')+'-'+String(_n.getDate()).padStart(2,'0');
+  return{date:_n.toLocaleDateString('fr-FR'),dateISO:_iso,
     motif:'',
     dn4,
     sensi_grosse_note:'',sensi_petite_note:'',
@@ -904,15 +907,21 @@ function emptyC(){
 }
 
 /* ══ CONSULTATIONS ══ */
-function addConsult(){const p=getP(cid);if(!p)return;p.consultations.push(emptyC());cidx=p.consultations.length-1;savePatient();renderConsults();showToast('📋 Consultation créée');}
+function addConsult(){const p=getP(cid);if(!p)return;
+  if(p.consultations?.length) savePatient(true); // enregistre la séance en cours AVANT d'en créer une nouvelle
+  p.consultations=p.consultations||[];p.consultations.push(emptyC());cidx=p.consultations.length-1;
+  save();renderConsults();showToast('📋 Nouvelle séance du '+p.consultations[cidx].date);}
 function renderConsults(){
   const p=getP(cid);const tabs=document.getElementById('ctabs'),ccontent=document.getElementById('ccontent');
   if(!p?.consultations?.length){tabs.innerHTML='';ccontent.innerHTML=`<div style="text-align:center;padding:32px;background:var(--white);border-radius:var(--r);border:1px solid var(--border);"><div style="font-size:36px;margin-bottom:10px;">📋</div><div style="color:var(--light);font-size:14px;">Aucune consultation</div><button class="btn-add" style="margin-top:12px;" onclick="addConsult()">＋ Créer la première</button></div>`;return;}
   tabs.innerHTML=p.consultations.map((c,i)=>`<button class="ctab${i===cidx?' active':''}" onclick="switchC(${i})">Séance ${i+1} — ${c.date}</button>`).join('');
-  ccontent.innerHTML=buildForm(p.consultations[cidx],cidx);bindPills();autoGrow(document.getElementById('c-motif'));
+  ccontent.innerHTML=buildForm(p.consultations[cidx],cidx);bindPills();growAll();
 }
-function switchC(i){cidx=i;renderConsults();}
-function autoGrow(el){if(!el)return;el.style.height='auto';el.style.height=el.scrollHeight+'px';}
+function switchC(i){if(i===cidx)return;savePatient(true);cidx=i;renderConsults();}
+function autoGrow(el){if(!el||!el.offsetParent)return;el.style.height='auto';el.style.height=(el.scrollHeight+2)+'px';}
+function growAll(root){(root||document).querySelectorAll('textarea.ft').forEach(autoGrow);}
+document.addEventListener('input',e=>{if(e.target&&e.target.matches&&e.target.matches('textarea.ft'))autoGrow(e.target);});
+window.addEventListener('resize',()=>growAll());
 function calcIPS(){
   const brasG=parseFloat(document.getElementById('c-ips-bras-g')?.value||0);
   const brasD=parseFloat(document.getElementById('c-ips-bras-d')?.value||0);
@@ -973,7 +982,7 @@ function mecaR(id,val){const o=[['nrp','Ne reproduit pas'],['pf','+ en flexion']
 function setMrb(btn,val){btn.closest('.mrg').querySelectorAll('.mrb').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
 function getMrb(id){const g=document.getElementById(id);if(!g)return'';const a=g.querySelector('.mrb.active');return a?a.textContent.trim():'';}
 function nnaEl(id,val,noteVal,label){return `<div class="sensi-item"><div class="sensi-label">${label}</div><div class="nna" data-id="${id}"><button class="nna-btn normal${val==='normal'?' active':''}" onclick="setNNA(this)">Normal</button><button class="nna-btn altere${val==='altéré'?' active':''}" onclick="setNNA(this)">Altéré</button></div><div class="sensi-note" id="snote-${id}" style="display:${val==='altéré'?'block':'none'};margin-top:7px;"><textarea class="ft" id="${id}-note" placeholder="Précisions…" style="min-height:50px;">${noteVal||''}</textarea></div></div>`;}
-function setNNA(btn){btn.closest('.nna').querySelectorAll('.nna-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const id=btn.closest('.sensi-item').querySelector('.nna').dataset.id;const note=document.getElementById('snote-'+id);if(note)note.style.display=btn.classList.contains('altere')?'block':'none';}
+function setNNA(btn){btn.closest('.nna').querySelectorAll('.nna-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const id=btn.closest('.sensi-item').querySelector('.nna').dataset.id;const note=document.getElementById('snote-'+id);if(note){note.style.display=btn.classList.contains('altere')?'block':'none';growAll(note);}}
 function getNNA(id){const g=document.querySelector(`.nna[data-id="${id}"]`);if(!g)return'';const a=g.querySelector('.nna-btn.active');return a?a.classList.contains('normal')?'normal':'altéré':'';}function getNNANote(id){const el=document.getElementById(id+'-note');return el?el.value:'';}
 function psyScale(id,val){return `<div class="psy-scale-row" id="${id}"><span class="psy-lbl">0</span>${[0,1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="psy-btn s${n}${val==n?' active':''}" onclick="setPsy(this)">${n}</button>`).join('')}<span class="psy-lbl">10</span></div>`;}
 function setPsy(btn){btn.closest('.psy-scale-row').querySelectorAll('.psy-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
@@ -995,7 +1004,7 @@ function updateRadar(idx){
 /* ══ (suppression gérée plus bas, avec synchronisation Firestore) ══ */
 
 /* ══ UTILS ══ */
-function toggleCard(id){document.getElementById(id).classList.toggle('collapsed');}
+function toggleCard(id){const el=document.getElementById(id);el.classList.toggle('collapsed');growAll(el);}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
 /* ════════════════════════════════════════
@@ -1033,13 +1042,7 @@ function buildForm(c,idx){
   const dn4int=dn4s>=4?'⚠️ Douleur neuropathique probable':dn4s>0?'Score insuffisant (<4)':'À compléter';
   const fs=c.force_sup||{},fi=c.force_inf||{},rot=c.rot||{},cen=c.central||{},meca=c.meca||{};
   return `<div>
-  <div class="card collapsed" id="c-date-${idx}"><div class="card-header" onclick="toggleCard('c-date-${idx}')"><div class="card-icon ci-navy">📅</div><div class="card-title">Date de consultation</div><div class="card-toggle">▾</div></div>
-    <div class="card-body"><div class="grid4">
-      <div class="fg"><label class="fl">Date</label><input class="fi" id="c-date" type="date" value="${c.dateISO||''}" onchange="updDate(this.value)"></div>
-    </div></div>
-  </div>
-
-  <div class="card collapsed" id="c-anam-${idx}"><div class="card-header" onclick="toggleCard('c-anam-${idx}')"><div class="card-icon ci-amber">📝</div><div class="card-title">Anamnèse & Motif</div><div class="card-toggle">▾</div></div>
+  <div class="card" id="c-anam-${idx}"><div class="card-header" onclick="toggleCard('c-anam-${idx}')"><div class="card-icon ci-amber">📝</div><div class="card-title">Anamnèse & Motif</div><div class="card-toggle">▾</div></div>
     <div class="card-body">
       <div class="fg"><label class="fl">Motif principal de consultation</label><textarea class="ft" id="c-motif" placeholder="Douleurs, plaintes principales…" style="min-height:70px;overflow:hidden;resize:none;" oninput="autoGrow(this)">${c.motif||''}</textarea></div>
     </div>
@@ -1198,7 +1201,7 @@ function buildForm(c,idx){
     </div>
   </div>
 
-  <div class="card collapsed" id="c-trt-${idx}"><div class="card-header" onclick="toggleCard('c-trt-${idx}')"><div class="card-icon ci-green">🖐</div><div class="card-title">Traitement effectué</div><div class="card-toggle">▾</div></div>
+  <div class="card" id="c-trt-${idx}"><div class="card-header" onclick="toggleCard('c-trt-${idx}')"><div class="card-icon ci-green">🖐</div><div class="card-title">Traitement effectué</div><div class="card-toggle">▾</div></div>
     <div class="card-body"><div class="grid3">
       <div class="fg span2"><label class="fl">Techniques</label><textarea class="ft" id="c-techniques" placeholder="Manipulation, viscérale…">${c.techniques||''}</textarea></div>
       <div class="fg span2"><label class="fl">Résultats immédiats</label><textarea class="ft" id="c-resultats" placeholder="Évolution douleur…">${c.resultats_immed||''}</textarea></div>
@@ -1525,7 +1528,7 @@ function generateReport(){
   <h2>Motif de consultation &amp; anamnèse</h2>
   <p>${c.motif||'—'}</p>
   ${p.ant_perso?`<p><em>Antécédents personnels :</em> ${p.ant_perso}</p>`:''}
-  ${p.ant_fam?`<p><em>Antécédents familiaux :</em> ${p.ant_fam}</p>`:''}
+  ${p.cr_examens?`<p><em>Compte rendu d'examens :</em> ${p.cr_examens}</p>`:''}
   ${p.traitements?`<p><em>Traitements en cours :</em> ${p.traitements}</p>`:''}
   ${p.tabac||p.alcool?`<p><em>Mode de vie :</em> Tabac : ${p.tabac||'—'} &nbsp;|&nbsp; Alcool : ${p.alcool||'—'}</p>`:''}
 
@@ -1719,18 +1722,17 @@ function generateReport(){
 /* ════════════════════════════════════════
    SAVE
 ════════════════════════════════════════ */
-function savePatient(){
+function savePatient(silent){
   const p=getP(cid);if(!p)return;
   p.nom=v('f-nom');p.prenom=v('f-prenom');p.ddn=v('f-ddn');p.age=v('f-age');
   p.sexe=v('f-sexe');p.profession=v('f-profession');p.adresse=v('f-adresse');
   p.tel=v('f-tel');p.email=v('f-email');p.medecin=v('f-medecin');
   p.sport=v('f-sport');p.origine=v('f-origine');
   p.newsletter=document.getElementById('f-newsletter').checked;
-  p.ant_perso=v('f-ant-perso');p.ant_fam=v('f-ant-fam');p.traitements=v('f-traitements');
+  p.ant_perso=v('f-ant-perso');p.cr_examens=v('f-cr-examens');p.ant_fam='';p.traitements=v('f-traitements');
   p.tabac=getYN('f-tabac');p.nb_tabac=v('f-nb-tabac');p.alcool=getYN('f-alcool');p.nb_alcool=v('f-nb-alcool');
   if(p.consultations?.length>0){
     const c=p.consultations[cidx];
-    c.dateISO=v('c-date');c.date=c.dateISO?new Date(c.dateISO).toLocaleDateString('fr-FR'):c.date;
     c.motif=v('c-motif');updateDn4(cidx);
     c.sensi_grosse=getNNA('sensi-grosse');c.sensi_grosse_note=getNNANote('sensi-grosse');c.sensi_petite=getNNA('sensi-petite');c.sensi_petite_note=getNNANote('sensi-petite');
     c.force_sup={};Object.keys(SUP_F).forEach(lv=>{c.force_sup[lv]={g:getFrb(`fsg-${lv}`),d:getFrb(`fsd-${lv}`)};});c.force_note_sup=v('fn-sup-note');
@@ -1758,7 +1760,7 @@ function savePatient(){
     const factAcq=document.querySelector('.yng[data-id="c-fact-acquittee"] .yn-btn.yes.active');
     c.fact_acquittee=!!factAcq;
   }
-  save();updateTitle(p);showToast('✅ Enregistré et synchronisé');
+  save();updateTitle(p);if(!silent)showToast('✅ Enregistré et synchronisé');
 }
 
 /* ════════════════════════════════════════
@@ -1865,10 +1867,10 @@ function printFiche(){
   </table>
   <h2>Antécédents &amp; hygiène de vie</h2>
   <table>
-    ${row('Antécédents personnels', p.ant_perso)}${row('Antécédents familiaux', p.ant_fam)}
+    ${row('Antécédents personnels', p.ant_perso)}${row('Compte rendu d\'examens', p.cr_examens)}
     ${row('Traitements en cours', p.traitements)}
     ${row('Tabagisme', yn(p.tabac)+(p.nb_tabac?` (${p.nb_tabac} / jour)`:''))}
-    ${row('Alcool', yn(p.alcool)+(p.nb_alcool?` (${p.nb_alcool} verres / semaine)`:''))}
+    ${row('Alcool', yn(p.alcool)+(p.nb_alcool?` (${p.nb_alcool})`:''))}
   </table>
   ${cons?`<h2>Consultations</h2>${cons}`:''}
   </body></html>`;
