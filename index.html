@@ -258,6 +258,8 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 .mrb.red2.active{background:#e8f5e9;color:#2e7d32;border-color:#43a047;font-weight:700;}
 .mrb.pf.active{background:#fff3e0;color:#e65100;border-color:#fb8c00;font-weight:700;}
 .mrb.pe.active{background:#fce4ec;color:#c62828;border-color:#e53935;font-weight:700;}
+.mrb.oui.active{background:#fce4ec;color:#c62828;border-color:#e53935;font-weight:700;}
+.mrb.non{}.mrb.non.active{background:var(--teal-pale);color:var(--teal);border-color:var(--teal);font-weight:700;}
 .nb-title{font-family:'Lora',serif;font-size:13px;font-weight:600;color:#fff;background:var(--navy);padding:7px 12px;border-radius:7px;margin:14px 0 8px;display:flex;align-items:center;gap:7px;}
 .nb-title.teal{background:var(--teal);}
 .nb-sub{font-size:11px;font-weight:700;color:var(--light);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 5px;}
@@ -978,9 +980,19 @@ function getHNH(id){const g=document.getElementById(id);if(!g)return'';const a=g
 function apR(id,val){return `<div class="ap-grp" id="${id}"><button class="ap-btn absent${val==='absent'?' active':''}" onclick="setAP(this)">Absent</button><button class="ap-btn present${val==='présent'?' active':''}" onclick="setAP(this)">Présent</button></div>`;}
 function setAP(btn){btn.closest('.ap-grp').querySelectorAll('.ap-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
 function getAP(id){const g=document.getElementById(id);if(!g)return'';const a=g.querySelector('.ap-btn.active');return a?a.classList.contains('absent')?'absent':'présent':'';}
-function mecaR(id,val){const o=[['nrp','Ne reproduit pas'],['pf','+ en flexion'],['pe','+ en extension']];return `<div class="mrg" id="${id}">${o.map(([c,l])=>`<button class="mrb ${c}${val===l?' active':''}" onclick="setMrb(this,'${l}')">${l}</button>`).join('')}</div>`;}
-function setMrb(btn,val){btn.closest('.mrg').querySelectorAll('.mrb').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
-function getMrb(id){const g=document.getElementById(id);if(!g)return'';const a=g.querySelector('.mrb.active');return a?a.textContent.trim():'';}
+// Mécanosensibilité : « Reproduction de la douleur » Oui / Non + position (flexion / extension), cumulables
+function mecaParse(val){val=val||'';return{r:/^Ne reproduit/.test(val)?'non':/^Reproduit/.test(val)?'oui':'',p:/flexion/.test(val)?'flexion':/extension/.test(val)?'extension':''};}
+function mecaR(id,val){const m=mecaParse(val);
+  const b=(g,v,c,l,on)=>`<button class="mrb ${c}${on?' active':''}" data-g="${g}" data-v="${v}" onclick="setMrb(this)">${l}</button>`;
+  return `<div class="mrg" id="${id}">${b('r','oui','oui','Oui',m.r==='oui')}${b('r','non','non','Non',m.r==='non')}${b('p','flexion','pf','+ en flexion',m.p==='flexion')}${b('p','extension','pe','+ en extension',m.p==='extension')}</div>`;}
+function setMrb(btn){const g=btn.dataset.g,was=btn.classList.contains('active');btn.closest('.mrg').querySelectorAll(`.mrb[data-g="${g}"]`).forEach(b=>b.classList.remove('active'));if(!was)btn.classList.add('active');}
+function getMrb(id){const g=document.getElementById(id);if(!g)return'';
+  const r=g.querySelector('.mrb[data-g="r"].active'),p=g.querySelector('.mrb[data-g="p"].active');
+  const rv=r?r.dataset.v:'',pv=p?'+ en '+p.dataset.v:'';
+  if(rv==='non'&&!pv)return 'Ne reproduit pas';
+  if(rv==='oui')return 'Reproduit la douleur'+(pv?' '+pv:'');
+  if(rv==='non')return 'Ne reproduit pas la douleur '+pv;
+  return pv;}
 function nnaEl(id,val,noteVal,label){return `<div class="sensi-item"><div class="sensi-label">${label}</div><div class="nna" data-id="${id}"><button class="nna-btn normal${val==='normal'?' active':''}" onclick="setNNA(this)">Normal</button><button class="nna-btn altere${val==='altéré'?' active':''}" onclick="setNNA(this)">Altéré</button></div><div class="sensi-note" id="snote-${id}" style="display:${val==='altéré'?'block':'none'};margin-top:7px;"><textarea class="ft" id="${id}-note" placeholder="Précisions…" style="min-height:50px;">${noteVal||''}</textarea></div></div>`;}
 function setNNA(btn){btn.closest('.nna').querySelectorAll('.nna-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const id=btn.closest('.sensi-item').querySelector('.nna').dataset.id;const note=document.getElementById('snote-'+id);if(note){note.style.display=btn.classList.contains('altere')?'block':'none';growAll(note);}}
 function getNNA(id){const g=document.querySelector(`.nna[data-id="${id}"]`);if(!g)return'';const a=g.querySelector('.nna-btn.active');return a?a.classList.contains('normal')?'normal':'altéré':'';}function getNNANote(id){const el=document.getElementById(id+'-note');return el?el.value:'';}
@@ -1081,7 +1093,7 @@ function buildForm(c,idx){
       <div class="cen-grid">${[['hoffman','Hoffman'],['trommer','Trommer'],['babinski','Babinski'],['supinateur','Supinateur inversé']].map(([k,l])=>`<div class="cen-item"><span class="cen-label">${l}</span>${apR(`cen-${k}`,cen[k]||'')}</div>`).join('')}</div>
       <input class="note-inp" id="cen-note" placeholder="Notes tests centraux…" value="${c.central_note||''}">
       <div class="nb-title" style="margin-top:16px;">🎯 Mécanosensibilité</div>
-      <div class="tbl-wrap"><table class="mtbl"><thead><tr><th class="th-nv">Structure</th><th class="th-op">Ne reproduit pas</th><th class="th-op">Réduit +</th><th class="th-op">+ en flexion</th><th class="th-op">+ en extension</th></tr></thead><tbody>
+      <div class="tbl-wrap"><table class="mtbl"><thead><tr><th class="th-nv">Structure</th><th class="th-op" colspan="2">Reproduction de la douleur</th><th class="th-op">+ en flexion</th><th class="th-op">+ en extension</th></tr></thead><tbody>
         <tr class="tbl-sub"><td colspan="5">Membre supérieur</td></tr>
         ${[['radial','Nerf radial'],['median','Nerf médian'],['ulnaire','Nerf ulnaire']].map(([k,l])=>`<tr><td class="td-nv">${l}</td><td colspan="4">${mecaR(`mc-${k}`,meca[k]||'')}</td></tr>`).join('')}
         <tr class="tbl-sub"><td colspan="5">Membre inférieur</td></tr>
