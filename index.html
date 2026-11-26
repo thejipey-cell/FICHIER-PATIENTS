@@ -951,14 +951,14 @@ function calcIPS(){
   if(gv){gv.textContent=ipsG||'—';gv.style.color=rg.color;}
   if(gl){gl.textContent=rg.txt;gl.style.color=rg.color;}
 }
-function toggleQty(id,btn){const el=document.getElementById(id);if(el)el.style.display=btn.classList.contains('yes')?'block':'none';}
+function toggleQty(id,btn){const el=document.getElementById(id);if(el)el.style.display=(btn.classList.contains('yes')&&btn.classList.contains('active'))?'block':'none';}
 function updDate(val){const p=getP(cid);p.consultations[cidx].dateISO=val;p.consultations[cidx].date=new Date(val).toLocaleDateString('fr-FR');const tabs=document.querySelectorAll('.ctab');if(tabs[cidx])tabs[cidx].textContent=`Séance ${cidx+1} — ${p.consultations[cidx].date}`;}
 function delConsult(idx){if(!confirm('Supprimer cette consultation ?'))return;getP(cid).consultations.splice(idx,1);cidx=Math.max(0,idx-1);savePatient();renderConsults();showToast('🗑 Consultation supprimée');}
 function bindPills(){document.querySelectorAll('.pill').forEach(pill=>{pill.addEventListener('click',function(){const input=this.querySelector('input');if(input.type==='radio'){document.querySelectorAll(`input[name="${input.name}"]`).forEach(r=>r.closest('.pill').classList.remove('checked'));this.classList.add('checked');input.checked=true;}});});}
 
 /* ══ COMPOSANTS UI ══ */
 function dn4Item(idx,num,text,val){return `<div class="dn4-item" id="d4-${idx}-${num}"><label>${num}. ${text}</label><div class="dn4-toggle"><button class="dn4-btn yes${val==='oui'?' active':''}" onclick="tDn4(${idx},${num},this)">Oui</button><button class="dn4-btn no${val==='non'?' active':''}" onclick="tDn4(${idx},${num},this)">Non</button></div></div>`;}
-function tDn4(idx,num,btn){btn.closest('.dn4-toggle').querySelectorAll('.dn4-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');updateDn4(idx);}
+function tDn4(idx,num,btn){const was=btn.classList.contains('active');btn.closest('.dn4-toggle').querySelectorAll('.dn4-btn').forEach(b=>b.classList.remove('active'));if(!was)btn.classList.add('active');updateDn4(idx);}
 function updateDn4(idx){
   const p=getP(cid);if(!p)return;const c=p.consultations[idx];if(!c)return;let sc=0;
   for(let i=1;i<=10;i++){const el=document.getElementById(`d4-${idx}-${i}`);if(!el)continue;if(el.querySelector('.dn4-btn.yes.active')){sc++;c.dn4['q'+i]='oui';}else c.dn4['q'+i]=el.querySelector('.dn4-btn.no.active')?'non':'';}
@@ -966,19 +966,19 @@ function updateDn4(idx){
   const ne=document.getElementById(`dn4n-${idx}`),ie=document.getElementById(`dn4i-${idx}`);if(ne){ne.textContent=sc;ne.style.color=col;}if(ie){ie.textContent=int;ie.style.color=col;}
 }
 function ynEl(id,val,label){return `<div class="fg"><label class="fl">${label}</label><div class="yng" data-id="${id}"><button class="yn-btn yes${val==='oui'?' active':''}" onclick="setYN(this)">Oui</button><button class="yn-btn no${val==='non'?' active':''}" onclick="setYN(this)">Non</button><button class="yn-btn nsp${val==='nsp'?' active':''}" onclick="setYN(this)">NSP</button></div></div>`;}
-function setYN(btn){btn.closest('.yng').querySelectorAll('.yn-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
+function setYN(btn){const was=btn.classList.contains('active');btn.closest('.yng').querySelectorAll('.yn-btn').forEach(b=>b.classList.remove('active'));if(!was)btn.classList.add('active');}
 function getYN(id){const g=document.querySelector(`.yng[data-id="${id}"]`);if(!g)return'';const a=g.querySelector('.yn-btn.active');return a?a.classList.contains('yes')?'oui':a.classList.contains('no')?'non':'nsp':'';}
 const SUP_F={C4:'Élévation épaule',C5:'ABD / Biceps',C6:'Flexion coude + poignet',C7:'Extension coude + rot. poignet',C8:'Extension poing/poignet',T1:'Écartement V'};
 const INF_F={L2:'Flexion hanche',L3:'Extension genou',L4:'Releveur pied',L5:'Extension orteils',S1:'Élévateur hallux',S2:'Ischios'};
 function forceSupR(id,val){return `<select class="force-sel" id="${id}"><option value="">—</option><option value="ok"${val==='ok'?' selected':''}>ok</option><option value="perte en flexion cervicale"${val==='perte en flexion cervicale'?' selected':''}>perte en flexion cervicale</option><option value="perte en extension cervicale"${val==='perte en extension cervicale'?' selected':''}>perte en extension cervicale</option></select>`;}
 function forceInfR(id,val){return `<select class="force-sel" id="${id}"><option value="">—</option><option value="ok"${val==='ok'?' selected':''}>ok</option><option value="perte en extension lombaire"${val==='perte en extension lombaire'?' selected':''}>perte en extension lombaire</option><option value="perte en flexion lombaire"${val==='perte en flexion lombaire'?' selected':''}>perte en flexion lombaire</option><option value="perte en flexion cervicale"${val==='perte en flexion cervicale'?' selected':''}>perte en flexion cervicale</option><option value="perte en extension cervicale"${val==='perte en extension cervicale'?' selected':''}>perte en extension cervicale</option></select>`;}
-function setFrb(btn,val){btn.closest('.frg').querySelectorAll('.frb').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
+function setFrb(btn,val){const was=btn.classList.contains('active');btn.closest('.frg').querySelectorAll('.frb').forEach(b=>b.classList.remove('active'));if(!was)btn.classList.add('active');}
 function getFrb(id){const g=document.getElementById(id);if(!g)return'';return g.value||'';}
 function rotR(id,val){return `<div class="hnh" id="${id}"><button class="hhb hypo${val==='hypo'?' active':''}" onclick="setHNH(this)">Hypo</button><button class="hhb norm${val==='norm'?' active':''}" onclick="setHNH(this)">Norm</button><button class="hhb hyper${val==='hyper'?' active':''}" onclick="setHNH(this)">Hyper</button></div>`;}
-function setHNH(btn){btn.closest('.hnh').querySelectorAll('.hhb').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
+function setHNH(btn){const was=btn.classList.contains('active');btn.closest('.hnh').querySelectorAll('.hhb').forEach(b=>b.classList.remove('active'));if(!was)btn.classList.add('active');}
 function getHNH(id){const g=document.getElementById(id);if(!g)return'';const a=g.querySelector('.hhb.active');return a?a.classList.contains('hypo')?'hypo':a.classList.contains('norm')?'norm':'hyper':'';}
 function apR(id,val){return `<div class="ap-grp" id="${id}"><button class="ap-btn absent${val==='absent'?' active':''}" onclick="setAP(this)">Absent</button><button class="ap-btn present${val==='présent'?' active':''}" onclick="setAP(this)">Présent</button></div>`;}
-function setAP(btn){btn.closest('.ap-grp').querySelectorAll('.ap-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
+function setAP(btn){const was=btn.classList.contains('active');btn.closest('.ap-grp').querySelectorAll('.ap-btn').forEach(b=>b.classList.remove('active'));if(!was)btn.classList.add('active');}
 function getAP(id){const g=document.getElementById(id);if(!g)return'';const a=g.querySelector('.ap-btn.active');return a?a.classList.contains('absent')?'absent':'présent':'';}
 // Mécanosensibilité : « Reproduction de la douleur » Oui / Non + position (flexion / extension), cumulables
 function mecaParse(val){val=val||'';return{r:/^Ne reproduit/.test(val)?'non':/^Reproduit/.test(val)?'oui':'',p:/flexion/.test(val)?'flexion':/extension/.test(val)?'extension':''};}
@@ -994,10 +994,10 @@ function getMrb(id){const g=document.getElementById(id);if(!g)return'';
   if(rv==='non')return 'Ne reproduit pas la douleur '+pv;
   return pv;}
 function nnaEl(id,val,noteVal,label){return `<div class="sensi-item"><div class="sensi-label">${label}</div><div class="nna" data-id="${id}"><button class="nna-btn normal${val==='normal'?' active':''}" onclick="setNNA(this)">Normal</button><button class="nna-btn altere${val==='altéré'?' active':''}" onclick="setNNA(this)">Altéré</button></div><div class="sensi-note" id="snote-${id}" style="display:${val==='altéré'?'block':'none'};margin-top:7px;"><textarea class="ft" id="${id}-note" placeholder="Précisions…" style="min-height:50px;">${noteVal||''}</textarea></div></div>`;}
-function setNNA(btn){btn.closest('.nna').querySelectorAll('.nna-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const id=btn.closest('.sensi-item').querySelector('.nna').dataset.id;const note=document.getElementById('snote-'+id);if(note){note.style.display=btn.classList.contains('altere')?'block':'none';growAll(note);}}
+function setNNA(btn){const was=btn.classList.contains('active');btn.closest('.nna').querySelectorAll('.nna-btn').forEach(b=>b.classList.remove('active'));if(!was)btn.classList.add('active');const id=btn.closest('.sensi-item').querySelector('.nna').dataset.id;const note=document.getElementById('snote-'+id);if(note){note.style.display=(!was&&btn.classList.contains('altere'))?'block':'none';growAll(note);}}
 function getNNA(id){const g=document.querySelector(`.nna[data-id="${id}"]`);if(!g)return'';const a=g.querySelector('.nna-btn.active');return a?a.classList.contains('normal')?'normal':'altéré':'';}function getNNANote(id){const el=document.getElementById(id+'-note');return el?el.value:'';}
 function psyScale(id,val){return `<div class="psy-scale-row" id="${id}"><span class="psy-lbl">0</span>${[0,1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="psy-btn s${n}${val==n?' active':''}" onclick="setPsy(this)">${n}</button>`).join('')}<span class="psy-lbl">10</span></div>`;}
-function setPsy(btn){btn.closest('.psy-scale-row').querySelectorAll('.psy-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
+function setPsy(btn){const was=btn.classList.contains('active');btn.closest('.psy-scale-row').querySelectorAll('.psy-btn').forEach(b=>b.classList.remove('active'));if(!was)btn.classList.add('active');}
 function getPsy(id){const g=document.getElementById(id);if(!g)return 0;const a=g.querySelector('.psy-btn.active');return a?parseInt(a.textContent):0;}
 const RDIMS=[['cognitif','Cognitif / Âme'],['comportement','Comportement mal adaptatif'],['contextuel','Contextuel (social)'],['hygiene','Hygiène de vie'],['mecanosensibilite','Mécanosensibilité'],['nociceptif','Nociceptif (EVA)'],['neuro_doul','NEURO = Douleur neuropathique'],['snc','Système nerveux central']];
 function renderRadar(radar){
