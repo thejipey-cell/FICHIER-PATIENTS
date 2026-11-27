@@ -875,6 +875,8 @@ function createPt(){
 /* ══ SELECT PATIENT ══ */
 function selectPt(id){
   cid=id;cidx=0;const p=getP(id);if(!p)return;
+  // Ouvre directement la séance la plus récente (date la plus récente, sinon la dernière créée)
+  if(p.consultations&&p.consultations.length){let best=p.consultations.length-1;p.consultations.forEach((c,i)=>{if((c.dateISO||'')>(p.consultations[best].dateISO||''))best=i;});cidx=best;}
   // Migration : si un ancien dossier avait ces infos au niveau consultation, on les remonte au patient
   if(p.consultations?.length){
     const first=p.consultations[0];
