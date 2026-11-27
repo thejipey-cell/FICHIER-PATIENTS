@@ -480,6 +480,7 @@ const firebaseConfig = {
     <div class="sb-tools">
       <button class="sb-tool" onclick="document.getElementById('pages-file').click()">📄 Importer des fiches Pages</button>
       <input type="file" id="pages-file" accept=".pages,.json,application/json" multiple style="display:none" onchange="readPagesFiles(this)">
+      <button class="sb-tool" onclick="openDuplicates()">🧹 Fusionner les doublons</button>
     </div>
   </div>
 </div>
@@ -609,6 +610,18 @@ const firebaseConfig = {
     <div class="modal-btns">
       <button class="act-btn act-sec" id="pages-cancel" onclick="document.getElementById('modal-pages').style.display='none'">Fermer</button>
       <button class="act-btn act-save" id="pages-go" onclick="runPagesImport()" disabled>📄 Importer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-dup" style="display:none" onclick="if(event.target===this&&!dupBusy)this.style.display='none'">
+  <div class="modal">
+    <h3>Fusionner les doublons</h3>
+    <p class="modal-note">Cherche les patients enregistrés plusieurs fois (même nom et prénom, même date de naissance ou date manquante) et les séances en double. Chaque patient en double est regroupé dans une seule fiche avec toutes ses séances.</p>
+    <div class="brevo-status" id="dup-summary"></div>
+    <div class="modal-btns">
+      <button class="act-btn act-sec" onclick="if(!dupBusy)document.getElementById('modal-dup').style.display='none'">Fermer</button>
+      <button class="act-btn act-save" id="dup-go" onclick="runDuplicates()" disabled>🧹 Fusionner</button>
     </div>
   </div>
 </div>
@@ -2354,17 +2367,115 @@ async function parsePagesFile(file){
   return {file:file.name,nom,prenom,ddn:frDateToISO(below('DATE DE NAISSANCE')),adresse:below('ADRESSE'),tel:frPhone(below('TELÉPHONE','TÉLÉPHONE')),medecin:below('MED G','MÉDECIN','MEDECIN TRAITANT'),
     sport:below('ACTIVITÉ'),profession:below('PROFESSION'),origine:below('RECOMMANDÉ PAR'),ant_perso:ant,traitements:below('TRAITEMENT'),sessions};
 }
+/* ══ DOUBLONS : détection et fusion ══ */
+let dupPlan=null, dupBusy=false;
+const SESS_KEY=c=>(c.dateISO||c.date||'')+'|'+normTxt(c.motif).slice(0,60)+'|'+normTxt(c.techniques).slice(0,60);
+function dupFind(){
+  const byName={};
+  pts.forEach(p=>{const k=normTxt(p.nom)+'|'+normTxt(p.prenom);if(k==='|')return;(byName[k]=byName[k]||[]).push(p);});
+  const groups=[];let homonymes=0;
+  Object.values(byName).forEach(list=>{
+    if(list.length<2)return;
+    const ddns=[...new Set(list.map(p=>p.ddn).filter(Boolean))];
+    if(ddns.length<=1){groups.push(list);return;}
+    // dates de naissance différentes : personnes différentes (homonymes), on ne fusionne que les vraies copies
+    ddns.forEach(d=>{const g=list.filter(p=>p.ddn===d);if(g.length>1)groups.push(g);});
+    homonymes++;
+  });
+  let sessDup=0;const sessFix=[];
+  pts.forEach(p=>{const cs=p.consultations||[];const seen=new Set();let n=0;cs.forEach(c=>{const k=SESS_KEY(c);if(seen.has(k))n++;else seen.add(k);});if(n){sessDup+=n;sessFix.push(p);}});
+  return {groups,homonymes,sessDup,sessFix};
+}
+function dupMerge(list){
+  const score=p=>(p.consultations||[]).length*10+(p.email?2:0)+Object.values(p).filter(v=>v!==''&&v!=null).length/100;
+  const sorted=[...list].sort((a,b)=>score(b)-score(a));
+  const keep=JSON.parse(JSON.stringify(sorted[0]));
+  const others=sorted.slice(1);
+  const longTxt=['ant_perso','traitements','cr_examens','origine','force_note'];
+  others.forEach(o=>{
+    Object.keys(o).forEach(k=>{
+      if(['id','consultations','userId','newsletter'].includes(k))return;
+      const v=o[k];if(v===''||v==null)return;
+      const cur=keep[k];
+      if(cur===''||cur==null||(Array.isArray(cur)&&!cur.length)) keep[k]=v;
+      else if(longTxt.includes(k)&&typeof cur==='string'&&typeof v==='string'&&!normTxt(cur).includes(normTxt(v))) keep[k]=cur+'\n'+v;
+    });
+    if(o.newsletter===false||keep.newsletter===false) keep.newsletter=false;
+  });
+  const all=[keep,...others].flatMap(p=>p.consultations||[]);
+  const seen=new Set(),cons=[];
+  all.forEach(c=>{const k=SESS_KEY(c);if(!seen.has(k)){seen.add(k);cons.push(c);}});
+  cons.sort((a,b)=>(a.dateISO||'').localeCompare(b.dateISO||''));
+  keep.consultations=cons;
+  return {keep,remove:others.map(o=>o.id)};
+}
+function openDuplicates(){
+  closePatientsDropdown();
+  const st=document.getElementById('dup-summary'),go=document.getElementById('dup-go');
+  document.getElementById('modal-dup').style.display='flex';
+  const f=dupFind();
+  const merges=f.groups.map(dupMerge);
+  const extra=f.sessFix.filter(p=>!f.groups.some(g=>g.includes(p)));
+  dupPlan={merges,extra};
+  const nDel=merges.reduce((s,m)=>s+m.remove.length,0);
+  if(!merges.length&&!f.sessDup){st.className='brevo-status ok';st.innerHTML='✓ Aucun doublon trouvé.'+(f.homonymes?`<br><small>${f.homonymes} homonyme(s) avec des dates de naissance différentes, laissés séparés.</small>`:'');go.disabled=true;return;}
+  st.className='brevo-status';
+  st.innerHTML=`<strong>${merges.length}</strong> patient(s) en double → ${nDel} fiche(s) en trop à fusionner.<br>`+
+    (f.sessDup?`<strong>${f.sessDup}</strong> séance(s) en double (même date, même motif, même traitement).<br>`:'')+
+    (f.homonymes?`<small>${f.homonymes} homonyme(s) avec des dates de naissance différentes : laissés séparés.</small><br>`:'')+
+    `<div style="max-height:180px;overflow:auto;margin-top:8px;font-size:12px;border-top:1px solid var(--border);padding-top:6px;">`+
+    f.groups.slice(0,300).map(g=>`${escH(g[0].nom)} ${escH(g[0].prenom||'')} — ${g.length} fiches (${g.map(p=>(p.consultations||[]).length).join(' + ')} séances)`).join('<br>')+`</div>`+
+    `<small>Une sauvegarde complète (fichier .json) est téléchargée avant la fusion. Aucune séance ni information n'est perdue : tout est regroupé dans une seule fiche.</small>`;
+  go.disabled=false;
+}
+async function runDuplicates(){
+  if(!dupPlan||dupBusy)return;
+  const st=document.getElementById('dup-summary'),go=document.getElementById('dup-go');
+  dupBusy=true;go.disabled=true;
+  try{
+    downloadFile('sauvegarde-patients-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify(pts),'application/json');
+    const writes=[],dels=[];
+    dupPlan.merges.forEach(m=>{writes.push(m.keep);dels.push(...m.remove);});
+    dupPlan.extra.forEach(p=>{const q=JSON.parse(JSON.stringify(p));const seen=new Set();q.consultations=(q.consultations||[]).filter(c=>{const k=SESS_KEY(c);if(seen.has(k))return false;seen.add(k);return true;});writes.push(q);});
+    const delSet=new Set(dels);
+    if(firebaseReady&&currentUser){
+      const ops=[...writes.map(p=>['set',p]),...dels.map(id=>['del',id])];
+      for(let i=0;i<ops.length;i+=200){
+        st.innerHTML=`⏳ Fusion en cours… ${Math.min(i+200,ops.length)} / ${ops.length}`;
+        const b=db.batch();
+        ops.slice(i,i+200).forEach(([t,x])=>{const ref=db.collection('patients').doc(t==='set'?x.id:x);if(t==='set')b.set(ref,Object.assign({},x,{userId:currentUser.uid}));else b.delete(ref);});
+        await b.commit();
+      }
+    }
+    const byId=Object.fromEntries(writes.map(p=>[p.id,p]));
+    pts=pts.filter(p=>!delSet.has(p.id)).map(p=>byId[p.id]||p);
+    cacheLocal();
+    if(cid&&delSet.has(cid)){const m=dupPlan.merges.find(m=>m.remove.includes(cid));cid=null;if(m)selectPt(m.keep.id);}
+    else if(cid){selectPt(cid);}
+    renderSidebar(document.getElementById('search-input').value);
+    st.className='brevo-status ok';
+    st.innerHTML=`✓ Terminé : ${dupPlan.merges.length} patient(s) fusionné(s), ${dels.length} fiche(s) en double supprimée(s).`;
+    dupPlan=null;
+  }catch(e){st.className='brevo-status err';st.innerHTML='⚠️ Erreur pendant la fusion : '+escH(e.message)+'<br><small>Ta sauvegarde .json a été téléchargée. Relance « Doublons » pour terminer.</small>';}
+  dupBusy=false;
+}
+
 function pagesPlan(){
   const idx={}; pts.forEach(p=>{ const k=normTxt(p.nom)+'|'+normTxt(p.prenom); (idx[k]=idx[k]||[]).push(p); });
-  let created=0, updated=0, newSess=0;
+  let created=0, updated=0, newSess=0; const newByKey={};
   const plan=pagesParsed.filter(r=>r.ok).map(r=>{
     const cands=idx[normTxt(r.nom)+'|'+normTxt(r.prenom)]||[];
-    const target=cands.find(p=>r.ddn&&p.ddn===r.ddn)||cands.find(p=>!p.ddn||!r.ddn)||null;
+    let target=cands.find(p=>r.ddn&&p.ddn===r.ddn)||cands.find(p=>!p.ddn||!r.ddn)||null;
+    if(!target){ // même patient en plusieurs fichiers dans ce même import : on regroupe au lieu de créer 2 fiches
+      const k=normTxt(r.nom)+'|'+normTxt(r.prenom)+'|'+(r.ddn||'');
+      const prev=newByKey[k]; if(prev){ const more=r.sessions.filter(x=>(x.dateISO||x.motif)&&!prev.add.some(y=>(y.dateISO||'')===(x.dateISO||'')&&normTxt(y.motif).slice(0,40)===normTxt(x.motif).slice(0,40))); prev.add=[...prev.add,...more]; newSess+=more.length; return null; }
+    }
     const existing=target?(target.consultations||[]):[];
     const add=r.sessions.filter(s=>(s.dateISO||s.motif)&&!existing.some(c=>(c.dateISO||'')===(s.dateISO||'')&&normTxt(c.motif).slice(0,40)===normTxt(s.motif).slice(0,40)));
     newSess+=add.length; if(target) updated++; else created++;
-    return {r,target,add};
-  });
+    const item={r,target,add}; if(!target) newByKey[normTxt(r.nom)+'|'+normTxt(r.prenom)+'|'+(r.ddn||'')]=item;
+    return item;
+  }).filter(Boolean);
   return {plan,created,updated,newSess};
 }
 async function readPagesFiles(input){
